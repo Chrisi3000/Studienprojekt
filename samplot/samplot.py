@@ -33,6 +33,7 @@ COLORS = {
     "Inversion": "blue",
     "InterChrmInversion": "blue",
     "InterChrm": "black",
+    # add insertion: color
 }
 
 READ_TYPES_USED = {
@@ -43,6 +44,7 @@ READ_TYPES_USED = {
     "Linked read": False,
     "Split-read": False,
     "Paired-end read": False,
+    # add insertion: add option for read type
 }
 
 # pysam.readthedocs.io/en/latest/api.html#pysam.AlignedSegment.cigartuples
@@ -598,6 +600,7 @@ def get_pairs_plan(ranges, pairs, linked_plan=False):
             insert_sizes.append(insert_size)
             steps.append(step)
 
+    # add insertion: max value of y axis is defined here?
     if len(insert_sizes) > 0:
         max_event = max(insert_sizes)
 
@@ -667,6 +670,7 @@ def get_pair_event_type(pe_read):
         (False, True): "Duplication",
         (False, False): "Inversion",
         (True, True): "Inversion",
+        # add insertion: add an event type
     }
     event_type = event_by_strand[pe_read[0].strand, pe_read[1].strand]
     return event_type
@@ -946,6 +950,7 @@ def get_split_plan(ranges, split, linked_plan=False):
         if i + 2 > len(lr_steps):
             break
         if (
+            # long read steps: align --> !align --> align
             lr_steps[i].info["TYPE"] == "Align"
             and lr_steps[i + 1].info["TYPE"] != "Align"
             and lr_steps[i + 2].info["TYPE"] == "Align"
@@ -965,6 +970,7 @@ def get_split_plan(ranges, split, linked_plan=False):
                     start,
                     end,
                     "SPLITREAD",
+                    # save the current SV type in the next split read step
                     info={"TYPE": lr_steps[i + 1].info["TYPE"], "INSERTSIZE": max_gap},
                 )
             )
@@ -1412,6 +1418,7 @@ def get_long_read_plan(read_name, long_reads, ranges):
     add_align_step(curr, steps, ranges)
 
     for i in range(1, len(alignments)):
+        # add insertion: add case for insertion
         last = alignments[i - 1]
         curr = alignments[i]
 
@@ -1421,9 +1428,7 @@ def get_long_read_plan(read_name, long_reads, ranges):
         if curr.pos.chrm != last.pos.chrm:
             if curr.strand != last.strand:
                 start = genome_interval(last.pos.chrm, last.pos.end, last.pos.end)
-
                 end = genome_interval(curr.pos.chrm, curr.pos.end, curr.pos.end)
-
                 info = {"TYPE": "InterChrmInversion"}
                 steps.append(plan_step(start, end, "LONGREAD", info=info))
             else:
@@ -1785,6 +1790,7 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
         "Duplication": "red",
         "InterChrm": "black",
         "InterChrmInversion": "blue",
+        # add insertion: color
     }
 
     for read_name in long_reads:
@@ -2936,6 +2942,7 @@ def plot_legend(fig, legend_fontsize, marker_size):
         "Inversion": "blue",
         "Aligned long read": "orange",
         "Linked read": "green",
+        # add insertion: color for legend
     }
 
     for read_type in READ_TYPES_USED:
@@ -3435,6 +3442,7 @@ def plot(parser, options, extra_args=None):
         if options.json_only:
             sys.exit(0)
 
+    # get file name
     if options.output_file:
         output_file = options.output_file
     else:

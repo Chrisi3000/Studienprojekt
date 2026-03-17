@@ -42,6 +42,7 @@ cmp_lookup = {
 
 
 class Sample(object):
+    # data members of one sample
     __slots__ = [
         "family_id",
         "id",
@@ -54,7 +55,9 @@ class Sample(object):
     ]
 
     def __init__(self, line):
+        # strip at whitespace
         toks = line.rstrip().split()
+        #add each element to sample
         self.family_id = toks[0]
         self.id = toks[1]
         self.paternal_id = toks[2]
@@ -62,12 +65,13 @@ class Sample(object):
         self.kids = []
         self.i = -1  # index in the vcf.
 
+    # show sample as string
     def __repr__(self):
         return "Sample(id:{id},paternal_id:{pid},maternal_id:{mid})".format(
             id=self.id, pid=self.paternal_id, mid=self.maternal_id
         )
 
-
+# flattens values into a single string
 def flatten(value, sep=","):
     """
     >>> flatten([1,2,3,4])
@@ -243,12 +247,15 @@ def parse_ped(path, vcf_samples=None):
     look = {}
     for line in open(path):
         samples.append(Sample(line))
+        # save if of samples to look for
         look[samples[-1].id] = samples[-1]
 
     for s in samples:
+        # save paternal id (if exists)
         s.dad = look.get(s.paternal_id)
         if s.dad is not None:
             s.dad.kids.append(s)
+        # save maternal id (if exists)
         s.mom = look.get(s.maternal_id)
         if s.mom is not None:
             s.mom.kids.append(s)
@@ -256,6 +263,7 @@ def parse_ped(path, vcf_samples=None):
     if vcf_samples is not None:
         result = []
         for i, variant_sample in enumerate(vcf_samples):
+            # skip every sample which is not in look
             if variant_sample not in look:
                 continue
             result.append(next(s for s in samples if s.id == variant_sample))
@@ -274,10 +282,12 @@ def get_names_to_bams(bams, name_list=None):
     """
     names = {}
     if name_list:
+        # error if different amount of values
         if len(name_list) != len(bams):
             logger.error("List of sample IDs does not match list of alignment files.")
             sys.exit(1)
 
+        # in names save the index and name of the bam files
         for i, p in enumerate(bams):
             names[name_list[i]] = p
     else:
@@ -1131,10 +1141,12 @@ def vcf(parser, args, pass_through_args):
     if args.debug:
         logger.setLevel(logging.DEBUG)
 
+    # ped files required when using de novo
     if args.dn_only and not args.ped:
         logger.error("Missing --ped, required when using --dn_only")
         sys.exit(1)
 
+    # reference required when using cram files
     if cram_input(args.bams):
         if "-r" not in pass_through_args and "--reference" not in pass_through_args:
             logger.error(
@@ -1150,8 +1162,10 @@ def vcf(parser, args, pass_through_args):
     if args.gff3:
         annotations = pysam.TabixFile(args.gff3)
 
+    # save input filters as expressions
     filters = [to_exprs(f) for f in args.filter]
 
+    # create sample objects
     ped_samples = parse_ped(args.ped, vcf_samples)
 
     # this is empty unless we have a sample with both parents defined.
@@ -1206,11 +1220,14 @@ def vcf(parser, args, pass_through_args):
         pass_through_args,
     )
 
+    # create site
     write_site(table_data, args.out_dir, args.output_type, annotations, denovo_row)
 
+    # save arguments
     if args.manual_run:
         with open(args.command_file, "w") as outfile:
             outfile.writelines(commands)
+    # run arguments
     else:
         if args.threads == 1:
             for command in commands:
