@@ -1,0 +1,18 @@
+ - Loading Repository from Github
+    https://github.com/ryanlayer/samplot
+ - Needed Files (in main directory):
+       - Dockerfile
+       - compose.yaml
+ - Docker installation Required (Restarting PC after)
+    https://www.docker.com/
+ - For all the following docker commands docker engine needs to be running
+ - In pycharm (or other terminal in project directory) you can use the following command to build the docker container
+    docker-compose build
+ - Starting the container and the bash for working with samplot tool
+    docker-compose up -d
+    docker-compose exec samplot bash
+ - Test command (Directory /test/data/result has to exist, as well as the test files in /test/data)
+    samplot plot -b NA12878_restricted.bam NA12889_restricted.bam NA12889_restricted.bam -s 115928726 -e 115931880 -c chr4 -o ./result/Test.png -t DEL
+ - Getting out of bash:
+    exit
+ - If problems with container it can be restartet through docker desktop

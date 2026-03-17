@@ -1,0 +1,10 @@
+services:
+  samplot:
+    build: .
+    image: samplot:latest
+    container_name: samplot
+    volumes:
+      - ./test/data:/data
+    working_dir: /data
+    stdin_open: true
+    command: bash
