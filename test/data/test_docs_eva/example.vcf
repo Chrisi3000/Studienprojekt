@@ -1,0 +1,11 @@
+##fileformat=VCFv4.2
+##contig=<ID=chr1,length=100000>
+##contig=<ID=chr2,length=100000>
+##source=example
+##INFO=<ID=SVTYPE,Number=1,Type=String,Description="SV type">
+##INFO=<ID=END,Number=1,Type=Integer,Description="End position">
+##INFO=<ID=SU,Number=1,Type=Integer,Description="Supporting reads">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	child
+chr1	1000	del_1	N	<DEL>	.	PASS	SVTYPE=DEL;END=1100;SU=10	GT	0/1
+chr1	2000	del_2	N	<DEL>	.	PASS	SVTYPE=DEL;END=2100;SU=15	GT	1/1
