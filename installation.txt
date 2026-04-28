@@ -13,6 +13,9 @@
     docker-compose exec samplot bash
  - Test command (Directory /test/data/result has to exist, as well as the test files in /test/data)
     samplot plot -b NA12878_restricted.bam NA12889_restricted.bam NA12889_restricted.bam -s 115928726 -e 115931880 -c chr4 -o ./result/Test.png -t DEL
+
+    samplot plot -b INS_subset.bam -s 24780000 -e 24810000 -c chr1 -o ./result/Test.png -t INS
+    samplot plot -b HG002_PacBio.bam -s 24780000 -e 24810000 -c chr1 -o ./result/Test_INS.png -t INS
  - Getting out of bash:
     exit
  - If problems with container it can be restartet through docker desktop

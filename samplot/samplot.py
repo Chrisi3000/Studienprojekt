@@ -1077,7 +1077,7 @@ class Alignment:
     position (int)
     """
 
-    def __init__(self, chrm, start, end, strand, query_position):
+    def __init__(self, chrm, start, end, strand, query_position, insertion_size=0):
         """Create Alignment instance
 
         Genomic interval is defined by start, end, and query_pos integers
@@ -1086,6 +1086,7 @@ class Alignment:
         self.pos = genome_interval(chrm, start, end)
         self.strand = strand
         self.query_position = query_position
+        self.insertion_size = insertion_size
 
     def __str__(self):
         return ",".join(
@@ -1160,6 +1161,10 @@ def get_alignments_from_cigar(chrm, curr_pos, strand, cigartuples, reverse=False
             curr_pos += length
             q_pos += length
         elif op == CIGAR_MAP["I"]:
+            if length > 50:
+                alignments.append(
+                    Alignment(chrm, curr_pos, curr_pos, strand, q_pos, length)
+                )
             q_pos += length
         elif op == CIGAR_MAP["D"]:
             curr_pos += length
@@ -1202,7 +1207,9 @@ def merge_alignments(min_gap, alignments):
         if len(merged_alignments) == 0:
             merged_alignments.append(alignment)
         else:
-            if (
+            if alignment.pos.start == alignment.pos.end:
+                merged_alignments.append(alignment)
+            elif (
                 alignment.pos.chrm == merged_alignments[-1].pos.chrm
                 and alignment.pos.start < merged_alignments[-1].pos.end + min_gap
             ):
@@ -1417,6 +1424,13 @@ def get_long_read_plan(read_name, long_reads, ranges):
 
         # figure out what the event is
 
+        # Insertion prototype
+        if curr.insertion_size > 50:
+            start = genome_interval(curr.pos.chrm, curr.pos.start, curr.pos.start + curr.pos.insertion_size)
+            end = genome_interval(curr.pos.chrm, curr.pos.start, curr.pos.start + curr.pos.insertion_size)
+            info = {"TYPE": "Insertion", "LENGTH": curr.insertion_size}
+            steps.append(plan_step(start, end, "LONGREAD", info=info))
+            add_align_step(curr, steps, ranges)
         # INTER CHROM
         if curr.pos.chrm != last.pos.chrm:
             if curr.strand != last.strand:
@@ -1784,7 +1798,7 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
         "Inversion": "blue",
         "Duplication": "red",
         "InterChrm": "black",
-        "InterChrmInversion": "blue",
+        "InterChrmInversion": "blue"
     }
 
     for read_name in long_reads:
@@ -1826,6 +1840,15 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                 )
 
                 curr_max_insert_size = max(curr_max_insert_size, max_gap)
+            elif event_type == "Insertion":
+                x = p[0]
+
+                height = max_gap * 1.15 if max_gap > 0 else 10
+
+                ax.plot([x, x], [max_gap, height], color="purple", lw=2)
+                ax.scatter([x], [height], color="purple", s=18, zorder=5)
+
+                curr_max_insert_size = max(curr_max_insert_size, height)
             else:
                 x1 = p[0]
                 x2 = p[1]
@@ -2647,6 +2670,10 @@ def get_read_data(
         all_long_reads.append(long_reads)
         all_linked_reads.append(linked_reads)
 
+        for r in long_reads:
+            with open("/data/result/read_data1.txt", "a") as f:
+                f.write(str(r) + "\n")
+
     read_data = {
         "all_pairs": all_pairs,
         "all_splits": all_splits,
@@ -2662,6 +2689,13 @@ def get_read_data(
         )
     if not same_yaxis_scales:
         max_coverage = 0
+
+
+    # TESTING print long reads - check if insertion still here
+    for r in read_data["all_long_reads"]:
+        with open("/data/result/read_data2.txt", "w") as f:
+            f.write(str(r) + "\n")
+
     return read_data, max_coverage
 
 
