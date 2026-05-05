@@ -1841,12 +1841,28 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
 
                 curr_max_insert_size = max(curr_max_insert_size, max_gap)
             elif event_type == "Insertion":
+                range_hit = get_range_hit(ranges, step.start_pos.chrm, step.start_pos.start)
+                range_width = 1.0 / len(ranges)
+
+                insert_size_scaled = range_width * (
+                        step.info["LENGTH"] /
+                        (ranges[range_hit].end - ranges[range_hit].start)
+                )
+
+                insert_size = step.info["LENGTH"] / 100
+                print("len:" + str(insert_size) + " --> " + str(insert_size_scaled))
                 x = p[0]
+                x_left = x - insert_size_scaled
+                x_right = x + insert_size_scaled
 
                 height = max_gap * 1.15 if max_gap > 0 else 10
 
-                ax.plot([x, x], [max_gap, height], color="purple", lw=2)
-                ax.scatter([x], [height], color="purple", s=18, zorder=5)
+                # example 4
+                ax.plot([x_left, x], [max_gap, max_gap], marker=7, markevery=[1], c="purple", markersize=3, lw=2)
+                ax.plot([x, x_right], [max_gap, max_gap], marker=7, markevery=[], c="purple", markersize=3, lw=2)
+
+                # ax.plot([x_left, x_right], [max_gap, max_gap], color="purple", lw=2, marker=7)
+                # ax.scatter([x], [height], color="purple", s=18, zorder=5)
 
                 curr_max_insert_size = max(curr_max_insert_size, height)
             else:
