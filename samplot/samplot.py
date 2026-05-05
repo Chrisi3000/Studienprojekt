@@ -1426,8 +1426,8 @@ def get_long_read_plan(read_name, long_reads, ranges):
 
         # Insertion prototype
         if curr.insertion_size > 50:
-            start = genome_interval(curr.pos.chrm, curr.pos.start, curr.pos.start + curr.pos.insertion_size)
-            end = genome_interval(curr.pos.chrm, curr.pos.start, curr.pos.start + curr.pos.insertion_size)
+            start = genome_interval(curr.pos.chrm, curr.pos.start, curr.pos.start + curr.insertion_size)
+            end = genome_interval(curr.pos.chrm, curr.pos.start, curr.pos.start + curr.insertion_size)
             info = {"TYPE": "Insertion", "LENGTH": curr.insertion_size}
             steps.append(plan_step(start, end, "LONGREAD", info=info))
             add_align_step(curr, steps, ranges)
