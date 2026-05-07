@@ -1786,8 +1786,9 @@ def plot_linked_reads(
 
 # }}}
 
+
 # {{{def plot_long_reads(long_reads,
-def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_insert_size, jitter_bounds):
+def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_insert_size, limitInsertion, jitter_bounds):
     """Plots all LongReads for the region
     """
 
@@ -1801,6 +1802,8 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
         "InterChrm": "black",
         "InterChrmInversion": "blue"
     }
+
+    ax2 = ax.twinx()
 
     for read_name in long_reads:
         long_read_plan = get_long_read_plan(read_name, long_reads, ranges)
@@ -1850,7 +1853,7 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                         (ranges[range_hit].end - ranges[range_hit].start)
                 )
 
-                insert_size = step.info["LENGTH"] / 100
+                insert_size = step.info["LENGTH"]
                 print("len:" + str(insert_size) + " --> " + str(insert_size_scaled))
                 x = p[0]
                 x_left = x - insert_size_scaled
@@ -1858,14 +1861,18 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
 
                 height = max_gap * 1.15 if max_gap > 0 else 10
 
-                # example 4
-                ax.plot([x_left, x], [max_gap, max_gap], marker=7, markevery=[1], c="purple", markersize=3, lw=2)
-                ax.plot([x, x_right], [max_gap, max_gap], marker=7, markevery=[], c="purple", markersize=3, lw=2)
-
-                # ax.plot([x_left, x_right], [max_gap, max_gap], color="purple", lw=2, marker=7)
-                # ax.scatter([x], [height], color="purple", s=18, zorder=5)
-
                 curr_max_insert_size = max(curr_max_insert_size, height)
+
+
+                ax2.plot([x_left, x], [insert_size, insert_size], marker=7, markevery=[1], c="purple", markersize=3,
+                         lw=1)
+                ax2.plot([x, x_right], [insert_size, insert_size], marker=7, markevery=[], c="purple", markersize=3,
+                         lw=1)
+
+                print("insert " + str(insert_size))
+                limitInsertion = max(limitInsertion, insert_size)
+                print("lim " + str(limitInsertion))
+
             else:
                 x1 = p[0]
                 x2 = p[1]
@@ -1892,9 +1899,23 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                 # add some room for the bend line
                 curr_max_insert_size = max(curr_max_insert_size, max_gap_offset)
 
+    ax2.set_ylim([0, max(1, limitInsertion*1.1)])
+    ax2.spines["top"].set_visible(False)
+    ax2.spines["bottom"].set_visible(False)
+    ax2.spines["left"].set_visible(False)
+
+    if (limitInsertion > 0):
+        ax2.tick_params(axis="y", colors="green", labelsize=5)
+        ax2.spines["right"].set_position(("outward", 25))
+    else:
+        ax2.tick_params(axis='y', which='both',
+                       left=False,
+                       right=False,
+                       labelleft=False,
+                       labelright=False)
+        ax2.spines["right"].set_visible(False)
+
     return [curr_min_insert_size, curr_max_insert_size]
-
-
 # }}}
 
 ##Setup
@@ -2800,6 +2821,7 @@ def plot_samples(
         cover_axs = {}
         for hp in hps:
             curr_ax = axs[hp]
+            limitInsertion = 0
 
             curr_splits = []
             if hp in read_data["all_splits"][i]:
@@ -2851,6 +2873,7 @@ def plot_samples(
                     ranges,
                     curr_min_insert_size,
                     curr_max_insert_size,
+                    limitInsertion,
                     jitter_bounds
                 )
             else:
@@ -2965,8 +2988,25 @@ def plot_samples(
     
         curr_ax = axs[hps[int(len(hps) / 2)]]
         curr_ax.set_ylabel("Insert size", fontsize=8)
+
         cover_ax = cover_axs[hps[int(len(hps) / 2)]]
-        cover_ax.set_ylabel("Coverage", fontsize=8)
+        cover_ax.set_ylabel("Coverage", fontsize=8, labelpad=10)
+        cover_ax.yaxis.set_label_position("right")
+        cover_ax.yaxis.tick_right()
+
+        if(curr_max_insert_size > 0):
+            insert_ax = cover_ax.twinx()
+
+            insert_ax.set_ylabel("Insert Size", fontsize=8, labelpad=20)
+            insert_ax.yaxis.set_label_position("right")
+            insert_ax.yaxis.tick_right()
+
+            insert_ax.spines["right"].set_visible(True)
+            insert_ax.spines["right"].set_position(("outward", 25))
+            insert_ax.spines["top"].set_visible(False)
+            insert_ax.spines["bottom"].set_visible(False)
+            insert_ax.spines["left"].set_visible(False)
+
         # }}}
 
         ax_i += 1
