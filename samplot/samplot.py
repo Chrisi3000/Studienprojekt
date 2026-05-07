@@ -1212,6 +1212,7 @@ def merge_alignments(min_gap, alignments):
             elif (
                 alignment.pos.chrm == merged_alignments[-1].pos.chrm
                 and alignment.pos.start < merged_alignments[-1].pos.end + min_gap
+                and merged_alignments[-1].pos.start != merged_alignments[-1].pos.end
             ):
                 merged_alignments[-1].pos.end = alignment.pos.end
             else:
