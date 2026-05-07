@@ -1432,7 +1432,7 @@ def get_long_read_plan(read_name, long_reads, ranges):
             steps.append(plan_step(start, end, "LONGREAD", info=info))
             add_align_step(curr, steps, ranges)
         # INTER CHROM
-        if curr.pos.chrm != last.pos.chrm:
+        elif curr.pos.chrm != last.pos.chrm:
             if curr.strand != last.strand:
                 start = genome_interval(last.pos.chrm, last.pos.end, last.pos.end)
 
