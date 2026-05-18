@@ -33,6 +33,7 @@ COLORS = {
     "Inversion": "blue",
     "InterChrmInversion": "blue",
     "InterChrm": "black",
+    "Insertion" : "purple"  #a
 }
 
 READ_TYPES_USED = {
@@ -43,6 +44,7 @@ READ_TYPES_USED = {
     "Linked read": False,
     "Split-read": False,
     "Paired-end read": False,
+    "Insertion": False      #a
 }
 
 # pysam.readthedocs.io/en/latest/api.html#pysam.AlignedSegment.cigartuples
@@ -3033,6 +3035,22 @@ def plot_legend(fig, legend_fontsize, marker_size):
                 lw=1,
             )
         ]
+
+    if READ_TYPES_USED["Insertion"]:
+        marker_labels.append("Insertion")
+        legend_elements += [
+                plt.Line2D(
+                    [0,0],
+                    [0,1],
+                    markerfacecolor = "purple",
+                    markeredgecolor="purple",
+                    color="purple",
+                    marker="v",
+                    markersize = marker_size,
+                    linestyle = "-",
+                    lw = 1,
+                )
+            ]
 
     fig.legend(
         legend_elements, marker_labels, loc=1, fontsize=legend_fontsize, frameon=False
