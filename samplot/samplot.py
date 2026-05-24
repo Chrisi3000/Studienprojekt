@@ -7,6 +7,7 @@ import random
 import re
 import sys
 from argparse import SUPPRESS
+from statistics import stdev
 
 import matplotlib
 matplotlib.use("Agg") #must be before imports of submodules in matplotlib
@@ -653,6 +654,7 @@ def get_pair_plan(ranges, pair, linked_plan=False):
     step = plan_step(start, end, "PAIREND")
 
     event_type = get_pair_event_type(pair)
+
     step.info = {"TYPE": event_type, "INSERTSIZE": insert_size}
 
     return insert_size, step
@@ -665,7 +667,7 @@ def get_pair_event_type(pe_read):
     """Decide what type of event the read supports (del/normal, dup, inv)
     """
     event_by_strand = {
-        (True, False): "Deletion/Normal",
+        (True, False): "Deletion/Normal",   # Insertion wär auch der case
         (False, True): "Duplication",
         (False, False): "Inversion",
         (True, True): "Inversion",
@@ -2977,6 +2979,39 @@ def plot_samples(
 
 # }}}
 
+# HandlerBase is necessary because two artists (the two markers) should be combined as
+# Line2D only draws horizontal lines
+from matplotlib.legend_handler import HandlerBase
+from matplotlib.lines import Line2D
+import matplotlib.pyplot as plt
+
+class InsertionHandler(HandlerBase):
+    def create_artists(self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans):
+        x = width / 2
+
+        # line vertical
+        line = Line2D(
+            [x, x],
+            [height * 1.5, height * 0.5],
+            color="purple",
+            lw=1,
+            transform=trans
+        )
+
+        # triangle facing down
+        triangle = Line2D(
+            [x],
+            [height * 0.2],
+            marker="v",
+            color="purple",
+            markerfacecolor="purple",
+            linestyle="None",
+            markersize=3,
+            transform=trans
+        )
+
+        return [line, triangle]
+
 # {{{def plot_legend(fig, legend_fontsize):
 def plot_legend(fig, legend_fontsize, marker_size):
     """Plots the figure legend
@@ -3038,22 +3073,14 @@ def plot_legend(fig, legend_fontsize, marker_size):
 
     if READ_TYPES_USED["Insertion"]:
         marker_labels.append("Insertion")
-        legend_elements += [
-                plt.Line2D(
-                    [0,0],
-                    [0,1],
-                    markerfacecolor = "purple",
-                    markeredgecolor="purple",
-                    color="purple",
-                    marker="v",
-                    markersize = marker_size,
-                    linestyle = "-",
-                    lw = 1,
-                )
-            ]
+
+        insertion_handle = Line2D([], [])
+        legend_elements.append(insertion_handle)
 
     fig.legend(
-        legend_elements, marker_labels, loc=1, fontsize=legend_fontsize, frameon=False
+        legend_elements, marker_labels, loc=1, fontsize=legend_fontsize, frameon=False,
+        #handler is only defined for insertion
+        handler_map={insertion_handle: InsertionHandler()}
     )
 
 
