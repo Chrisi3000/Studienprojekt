@@ -1788,7 +1788,7 @@ def plot_linked_reads(
 
 
 # {{{def plot_long_reads(long_reads,
-def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_insert_size, limitInsertion, jitter_bounds):
+def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_insert_size, limitInsertion, jitter_bounds,yaxis_label_fontsize):
     """Plots all LongReads for the region
     """
 
@@ -1800,7 +1800,8 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
         "Inversion": "blue",
         "Duplication": "red",
         "InterChrm": "black",
-        "InterChrmInversion": "blue"
+        "InterChrmInversion": "blue",
+        "Insertion": "purple"
     }
 
     ax2 = ax.twinx()
@@ -1856,18 +1857,12 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                 insert_size = step.info["LENGTH"]
                 print("len:" + str(insert_size) + " --> " + str(insert_size_scaled))
                 x = p[0]
-                x_left = x - insert_size_scaled
-                x_right = x + insert_size_scaled
+                y_upper = insert_size + insert_size
 
                 height = max_gap * 1.15 if max_gap > 0 else 10
 
                 curr_max_insert_size = max(curr_max_insert_size, height)
-
-
-                ax2.plot([x_left, x], [insert_size, insert_size], marker=7, markevery=[1], c="purple", markersize=3,
-                         lw=1)
-                ax2.plot([x, x_right], [insert_size, insert_size], marker=7, markevery=[], c="purple", markersize=3,
-                         lw=1)
+                ax2.plot([x, x], [insert_size, y_upper], marker=7, markevery=[0], c=colors[event_type], markersize=3,lw=1)
 
                 print("insert " + str(insert_size))
                 limitInsertion = max(limitInsertion, insert_size)
@@ -1876,7 +1871,7 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
             else:
                 x1 = p[0]
                 x2 = p[1]
-                # get offset to bend the line up
+                # get offset to bend the line-up
                 max_gap_offset = max(jitter(max_gap * 1.1, bounds=jitter_bounds), max_gap)
                 pp = mpatches.PathPatch(
                     Path(
@@ -1899,16 +1894,17 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                 # add some room for the bend line
                 curr_max_insert_size = max(curr_max_insert_size, max_gap_offset)
 
-    ax2.set_ylim([0, max(1, limitInsertion*1.1)])
+    ax2.set_ylim([0, max(1, limitInsertion*2.1)])
     ax2.spines["top"].set_visible(False)
     ax2.spines["bottom"].set_visible(False)
     ax2.spines["left"].set_visible(False)
 
     if (limitInsertion > 0):
-        ax2.tick_params(axis="y", colors="green", labelsize=5)
-        ax2.spines["right"].set_position(("outward", 25))
+        ax2.tick_params(axis="y", colors="grey", labelsize=yaxis_label_fontsize)
+        ax2.spines["right"].set_position(("outward", 30))
+        ax2.spines["right"].set_color("grey")
     else:
-        ax2.tick_params(axis='y', which='both',
+        ax2.tick_params(axis="y", which="both",
                        left=False,
                        right=False,
                        labelleft=False,
@@ -2874,7 +2870,8 @@ def plot_samples(
                     curr_min_insert_size,
                     curr_max_insert_size,
                     limitInsertion,
-                    jitter_bounds
+                    jitter_bounds,
+                    yaxis_label_fontsize
                 )
             else:
                 curr_min_insert_size, curr_max_insert_size = plot_pairs(
@@ -2985,29 +2982,28 @@ def plot_samples(
             curr_ax.set_xticklabels(labels, fontsize=xaxis_label_fontsize)
             chrms = [x.chrm for x in ranges]
             curr_ax.set_xlabel("Chromosomal position on " + "/".join(chrms), fontsize=8)
-    
+
         curr_ax = axs[hps[int(len(hps) / 2)]]
         curr_ax.set_ylabel("Insert size", fontsize=8)
 
+        #Coverage label axis
         cover_ax = cover_axs[hps[int(len(hps) / 2)]]
-        cover_ax.set_ylabel("Coverage", fontsize=8, labelpad=10)
-        cover_ax.yaxis.set_label_position("right")
-        cover_ax.yaxis.tick_right()
+        cover_ax.set_ylabel("Coverage", fontsize=8)
 
-        if(curr_max_insert_size > 0):
-            insert_ax = cover_ax.twinx()
-
-            insert_ax.set_ylabel("Insert Size", fontsize=8, labelpad=20)
-            insert_ax.yaxis.set_label_position("right")
-            insert_ax.yaxis.tick_right()
-
-            insert_ax.spines["right"].set_visible(True)
-            insert_ax.spines["right"].set_position(("outward", 25))
-            insert_ax.spines["top"].set_visible(False)
-            insert_ax.spines["bottom"].set_visible(False)
-            insert_ax.spines["left"].set_visible(False)
-
-        # }}}
+        #Insertion Size label axis
+        insert_ax = curr_ax.twinx()
+        insert_ax.spines["right"].set_position(("outward", 40))
+        insert_ax.spines["top"].set_visible(False)
+        insert_ax.spines["bottom"].set_visible(False)
+        insert_ax.spines["left"].set_visible(False)
+        insert_ax.spines["right"].set_visible(False)
+        insert_ax.tick_params(
+            axis="y",
+            right=False,
+            labelright=False,
+            length=0
+        )
+        insert_ax.set_ylabel("Insertion Size", fontsize=8, labelpad=10)
 
         ax_i += 1
     return ax_i
@@ -3073,6 +3069,22 @@ def plot_legend(fig, legend_fontsize, marker_size):
                 lw=1,
             )
         ]
+
+    if READ_TYPES_USED["Insertion"]:
+        marker_labels.append("Insertion")
+        legend_elements += [
+                plt.Line2D(
+                    [0,0],
+                    [0,1],
+                    markerfacecolor = "purple",
+                    markeredgecolor="purple",
+                    color="purple",
+                    marker="v",
+                    markersize = marker_size,
+                    linestyle = "-",
+                    lw = 1,
+                )
+            ]
 
     fig.legend(
         legend_elements, marker_labels, loc=1, fontsize=legend_fontsize, frameon=False
