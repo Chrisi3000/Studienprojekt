@@ -1867,9 +1867,7 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                 curr_max_insert_size = max(curr_max_insert_size, height)
                 ax2.plot([x, x], [insert_size, y_upper], marker=7, markevery=[0], c=colors[event_type], markersize=3,lw=1)
 
-                print("insert " + str(insert_size))
                 limitInsertion = max(limitInsertion, insert_size)
-                print("lim " + str(limitInsertion))
 
             else:
                 x1 = p[0]
