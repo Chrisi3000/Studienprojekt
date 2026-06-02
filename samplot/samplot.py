@@ -7,6 +7,7 @@ import random
 import re
 import sys
 from argparse import SUPPRESS
+from typing import Final
 
 import matplotlib
 matplotlib.use("Agg") #must be before imports of submodules in matplotlib
@@ -33,12 +34,14 @@ COLORS = {
     "Inversion": "blue",
     "InterChrmInversion": "blue",
     "InterChrm": "black",
+    "Insertion" : "purple",
 }
 
 READ_TYPES_USED = {
     "Deletion/Normal": False,
     "Duplication": False,
     "Inversion": False,
+    "Insertion": False,
     "Aligned long read": False,
     "Linked read": False,
     "Split-read": False,
@@ -3003,13 +3006,45 @@ def plot_samples(
             labelright=False,
             length=0
         )
-        insert_ax.set_ylabel("Insertion Size", fontsize=8, labelpad=10)
+        insert_ax.set_ylabel("Insertion Length", fontsize=8, labelpad=10)
 
         ax_i += 1
     return ax_i
-
-
 # }}}
+
+# HandlerBase is necessary because two artists (the two markers) should be combined as
+# Line2D only draws horizontal lines
+from matplotlib.legend_handler import HandlerBase
+from matplotlib.lines import Line2D
+import matplotlib.pyplot as plt
+
+class InsertionHandler(HandlerBase):
+    event_type: Final = "Insertion"
+    def create_artists(self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans):
+        x = width / 2
+
+        # line vertical
+        line = Line2D(
+            [x, x],
+            [height * 1.5, height * 0.5],
+            color=COLORS[InsertionHandler.event_type],
+            lw=1,
+            transform=trans
+        )
+
+        # triangle facing down
+        triangle = Line2D(
+            [x],
+            [height * 0.2],
+            marker="v",
+            color=COLORS[InsertionHandler.event_type],
+            markerfacecolor=COLORS[InsertionHandler.event_type],
+            linestyle="None",
+            markersize=3,
+            transform=trans
+        )
+
+        return [line, triangle]
 
 # {{{def plot_legend(fig, legend_fontsize):
 def plot_legend(fig, legend_fontsize, marker_size):
@@ -3023,6 +3058,7 @@ def plot_legend(fig, legend_fontsize, marker_size):
         "Inversion": "blue",
         "Aligned long read": "orange",
         "Linked read": "green",
+        "Insertion":"purple",
     }
 
     for read_type in READ_TYPES_USED:
@@ -3072,25 +3108,15 @@ def plot_legend(fig, legend_fontsize, marker_size):
 
     if READ_TYPES_USED["Insertion"]:
         marker_labels.append("Insertion")
-        legend_elements += [
-                plt.Line2D(
-                    [0,0],
-                    [0,1],
-                    markerfacecolor = "purple",
-                    markeredgecolor="purple",
-                    color="purple",
-                    marker="v",
-                    markersize = marker_size,
-                    linestyle = "-",
-                    lw = 1,
-                )
-            ]
+
+        insertion_handle = Line2D([], [])
+        legend_elements.append(insertion_handle)
 
     fig.legend(
-        legend_elements, marker_labels, loc=1, fontsize=legend_fontsize, frameon=False
+        legend_elements, marker_labels, loc=1, fontsize=legend_fontsize, frameon=False,
+        #handler is only defined for insertion
+        handler_map={insertion_handle: InsertionHandler()}
     )
-
-
 # }}}
 
 # {{{def create_gridspec(bams, transcript_file, annotation_files, sv_type ):
