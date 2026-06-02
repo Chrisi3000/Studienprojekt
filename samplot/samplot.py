@@ -26,6 +26,15 @@ logger = logging.getLogger(__name__)
 
 INTERCHROM_YAXIS = 5000
 
+
+def write_debug_result(filename, message):
+    result_dir = os.path.join("result")
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+
+    with open(os.path.join(result_dir, filename), "a") as debug_file:
+        debug_file.write(str(message) + "\n")
+
 COLORS = {
     "Deletion/Normal": "black",
     "Deletion": "black",
@@ -387,7 +396,7 @@ class PairedEnd:
     molecular identifier), HP (int haplotype)
     """
 
-    def __init__(self, chrm, start, end, is_reverse, MI_tag, HP_tag):
+    def __init__(self, chrm, start, end, is_reverse, MI_tag, HP_tag, mate_is_unmapped=False):
         """Create PairedEnd instance
 
         Genomic interval is defined by start and end integers
@@ -401,6 +410,8 @@ class PairedEnd:
         self.MI = None
         # haplotype - phased reads only
         self.HP = 0
+
+        self.mate_is_unmapped = mate_is_unmapped
 
         if MI_tag:
             self.MI = MI_tag
@@ -428,6 +439,30 @@ def add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp):
     Pysam read is added as simpified PairedEnd instance to pairs
     Also added to linked_reads list if there is an associated MI tag
     """
+    if read.mate_is_unmapped:
+        write_debug_result(
+            "mate_is_unmapped.txt",
+            "\n".join(
+                [
+                    str(read.to_dict()),
+                    "",
+                    "query_name: " + str(read.query_name),
+                    "flag: " + str(read.flag),
+                    "reference_name: " + str(read.reference_name),
+                    "reference_start: " + str(read.reference_start),
+                    "reference_end: " + str(read.reference_end),
+                    "mapping_quality: " + str(read.mapping_quality),
+                    "cigarstring: " + str(read.cigarstring),
+                    "query_sequence: " + str(read.query_sequence),
+                    "query_qualities: " + str(read.query_qualities),
+                    "is_unmapped: " + str(read.is_unmapped),
+                    "is_paired: " + str(read.is_paired),
+                    "is_reverse: " + str(read.is_reverse),
+                    "tags: " + str(read.get_tags()),
+                    "",
+                ]
+            ),
+        )
 
     if read.is_unmapped:
         return
@@ -453,6 +488,7 @@ def add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp):
         read.is_reverse,
         MI_tag,
         HP_tag,
+        read.mate_is_unmapped
     )
 
     if pe.HP not in pairs:
@@ -495,6 +531,16 @@ def sample_normal(max_depth, pairs, z):
     for read_name in pairs:
         pair = pairs[read_name]
         if len(pair) != 2:
+            write_debug_result(
+                "sample_normal.txt",
+                "sample_normal: "
+                + str(pair[0].pos.start)
+                + " - "
+                + str(pair[0].pos.end),
+            )
+            if pair[0].mate_is_unmapped:
+                sampled_pairs[read_name] = pair
+
             continue
         if pair[0].strand == True and pair[1].strand == False:
             plus_minus_pairs[read_name] = pair
@@ -610,7 +656,40 @@ def get_pairs_plan(ranges, pairs, linked_plan=False):
 
 # {{{def get_pair_plan(ranges, pair, linked_plan=False):
 def get_pair_plan(ranges, pair, linked_plan=False):
-    if pair == None or len(pair) != 2:
+    if len(pair) != 2 and pair[0].mate_is_unmapped:
+        write_debug_result(
+            "get_pair_plan.txt",
+            "get_pair_plan: " + str(pair[0].pos.start) + " - " + str(pair[0].pos.end),
+        )
+        first = pair[0]
+
+        first_s_hit = get_range_hit(ranges, first.pos.chrm, first.pos.start)
+        first_e_hit = get_range_hit(ranges, first.pos.chrm, first.pos.end)
+        if (first_s_hit == None and first_e_hit == None):
+            return None
+        first_hit = first_s_hit if first_s_hit != None else first_e_hit
+
+        start = genome_interval(
+            first.pos.chrm,
+            max(first.pos.start, ranges[first_hit].start),
+            max(first.pos.start, ranges[first_hit].start),
+        )
+
+        end = genome_interval(
+            first.pos.chrm,
+            min(first.pos.end, ranges[first_hit].end),
+            min(first.pos.end, ranges[first_hit].end),
+        )
+
+        step = plan_step(start, end, "PAIREND")
+
+        #event_type = get_pair_event_type(pair)
+        step.info = {"TYPE": "Deletion/Normal", "INSERTSIZE": 2000, "MATE_IS_UNMAPPED": True}
+
+        return 2000, step
+
+
+    if pair == None:
         return None
 
     first = pair[0]
@@ -708,6 +787,21 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
     event_type = step.info["TYPE"]
     READ_TYPES_USED[event_type] = True
     color = COLORS[event_type]
+
+    if "MATE_IS_UNMAPPED" in step.info:
+        ax.plot(
+            p,
+            [y, y],
+            "-",
+            color="hotpink",
+            alpha=0.25,
+            lw=0.5,
+            marker="s",
+            markersize=marker_size,
+            zorder=10,
+        )
+
+        return True
 
     # plot the individual pair
     ax.plot(
@@ -1851,7 +1945,6 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                 )
 
                 insert_size = step.info["LENGTH"] / 100
-                print("len:" + str(insert_size) + " --> " + str(insert_size_scaled))
                 x = p[0]
                 x_left = x - insert_size_scaled
                 x_right = x + insert_size_scaled
@@ -2706,12 +2799,6 @@ def get_read_data(
         )
     if not same_yaxis_scales:
         max_coverage = 0
-
-
-    # TESTING print long reads - check if insertion still here
-    for r in read_data["all_long_reads"]:
-        with open("/data/result/read_data2.txt", "w") as f:
-            f.write(str(r) + "\n")
 
     return read_data, max_coverage
 
