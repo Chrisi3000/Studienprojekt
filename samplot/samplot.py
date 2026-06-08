@@ -531,14 +531,14 @@ def sample_normal(max_depth, pairs, z):
     for read_name in pairs:
         pair = pairs[read_name]
         if len(pair) != 2:
-            write_debug_result(
-                "sample_normal.txt",
-                "sample_normal: "
-                + str(pair[0].pos.start)
-                + " - "
-                + str(pair[0].pos.end),
-            )
             if pair[0].mate_is_unmapped:
+                write_debug_result(
+                    "sample_normal.txt",
+                    "sample_normal: "
+                    + str(pair[0].pos.start)
+                    + " - "
+                    + str(pair[0].pos.end),
+                )
                 sampled_pairs[read_name] = pair
 
             continue
@@ -656,64 +656,18 @@ def get_pairs_plan(ranges, pairs, linked_plan=False):
 
 # {{{def get_pair_plan(ranges, pair, linked_plan=False):
 def get_pair_plan(ranges, pair, linked_plan=False):
-    if len(pair) != 2 and pair[0].mate_is_unmapped:
-        write_debug_result(
-            "get_pair_plan.txt",
-            "get_pair_plan: " + str(pair[0].pos.start) + " - " + str(pair[0].pos.end),
-        )
-        first = pair[0]
-
-        first_s_hit = get_range_hit(ranges, first.pos.chrm, first.pos.start)
-        first_e_hit = get_range_hit(ranges, first.pos.chrm, first.pos.end)
-        if (first_s_hit == None and first_e_hit == None):
-            return None
-        first_hit = first_s_hit if first_s_hit != None else first_e_hit
-
-        start = genome_interval(
-            first.pos.chrm,
-            max(first.pos.start, ranges[first_hit].start),
-            max(first.pos.start, ranges[first_hit].start),
-        )
-
-        end = genome_interval(
-            first.pos.chrm,
-            min(first.pos.end, ranges[first_hit].end),
-            min(first.pos.end, ranges[first_hit].end),
-        )
-
-        step = plan_step(start, end, "PAIREND")
-
-        #event_type = get_pair_event_type(pair)
-        step.info = {"TYPE": "Deletion/Normal", "INSERTSIZE": 2000, "MATE_IS_UNMAPPED": True}
-
-        return 2000, step
-
-
     if pair == None:
         return None
 
     first = pair[0]
-    second = pair[1]
 
-    # see if they are part of a linked read
-    if not linked_plan and (first.MI or second.MI):
-        return None
-
-    # make sure both ends are in the plotted region
+    # make sure both ends are in the plotted region (later also for second)
     first_s_hit = get_range_hit(ranges, first.pos.chrm, first.pos.start)
     first_e_hit = get_range_hit(ranges, first.pos.chrm, first.pos.end)
-    second_s_hit = get_range_hit(ranges, second.pos.chrm, second.pos.start)
-    second_e_hit = get_range_hit(ranges, second.pos.chrm, second.pos.end)
 
-    if (first_s_hit == None and first_e_hit == None) or (
-        second_s_hit == None and second_e_hit == None
-    ):
+    if (first_s_hit == None and first_e_hit == None):
         return None
-
-    insert_size = get_pair_insert_size(ranges, pair)
-
     first_hit = first_s_hit if first_s_hit != None else first_e_hit
-    second_hit = second_e_hit if second_e_hit != None else second_s_hit
 
     start = genome_interval(
         first.pos.chrm,
@@ -721,16 +675,48 @@ def get_pair_plan(ranges, pair, linked_plan=False):
         max(first.pos.start, ranges[first_hit].start),
     )
 
-    end = genome_interval(
-        second.pos.chrm,
-        min(second.pos.end, ranges[second_hit].end),
-        min(second.pos.end, ranges[second_hit].end),
-    )
+    if len(pair) != 2 and pair[0].mate_is_unmapped:
+        write_debug_result(
+            "get_pair_plan.txt",
+            "get_pair_plan: " + str(pair[0].pos.start) + " - " + str(pair[0].pos.end),
+        )
+        insert_size = 2000
+
+        end = genome_interval(
+            first.pos.chrm,
+            min(first.pos.end, ranges[first_hit].end),
+            min(first.pos.end, ranges[first_hit].end),
+        )
+
+    else:
+        second = pair[1]
+
+        # see if they are part of a linked read
+        if not linked_plan and (first.MI or second.MI):
+            return None
+
+        second_s_hit = get_range_hit(ranges, second.pos.chrm, second.pos.start)
+        second_e_hit = get_range_hit(ranges, second.pos.chrm, second.pos.end)
+
+        if (second_s_hit == None and second_e_hit == None):
+            return None
+
+        insert_size = get_pair_insert_size(ranges, pair)
+
+        second_hit = second_e_hit if second_e_hit != None else second_s_hit
+
+        end = genome_interval(
+            second.pos.chrm,
+            min(second.pos.end, ranges[second_hit].end),
+            min(second.pos.end, ranges[second_hit].end),
+        )
 
     step = plan_step(start, end, "PAIREND")
 
     event_type = get_pair_event_type(pair)
-    step.info = {"TYPE": event_type, "INSERTSIZE": insert_size}
+    step.info = {"TYPE": event_type,
+                 "INSERTSIZE": insert_size,
+                 "MATE_IS_UNMAPPED": len(pair) != 2 and pair[0].mate_is_unmapped}
 
     return insert_size, step
 
@@ -747,7 +733,13 @@ def get_pair_event_type(pe_read):
         (False, False): "Inversion",
         (True, True): "Inversion",
     }
-    event_type = event_by_strand[pe_read[0].strand, pe_read[1].strand]
+
+    # Case Mate unmapped (mate either forward or reverse strand)
+    if len(pe_read) != 2 and pe_read[0].mate_is_unmapped:
+        first_strand = True if pe_read[0].strand else False
+        event_type = event_by_strand[first_strand, not first_strand]
+    else:
+        event_type = event_by_strand[pe_read[0].strand, pe_read[1].strand]
     return event_type
 
 
@@ -788,7 +780,7 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
     READ_TYPES_USED[event_type] = True
     color = COLORS[event_type]
 
-    if "MATE_IS_UNMAPPED" in step.info:
+    if "MATE_IS_UNMAPPED" in step.info and step.info["MATE_IS_UNMAPPED"] == True:
         ax.plot(
             p,
             [y, y],
