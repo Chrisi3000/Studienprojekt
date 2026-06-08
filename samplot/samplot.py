@@ -778,18 +778,38 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
     READ_TYPES_USED[event_type] = True
     color = COLORS[event_type]
 
-    if "MATE_IS_UNMAPPED" in step.info and step.info["MATE_IS_UNMAPPED"] == True:
+    y_jitt = jitter(y, 0.9)
+    read_len = step.start_pos.end - step.start_pos.start
+
+    x_start = p[0]
+    x_end = p[1]
+
+    if "MATE_IS_UNMAPPED" in step.info:
+        # if step.strand:
         ax.plot(
-            p,
-            [y, y],
+            [x_start, x_start + read_len],
+            [y_jitt, y_jitt],
             "-",
             color="hotpink",
             alpha=0.25,
             lw=0.5,
             marker="s",
             markersize=marker_size,
+            markevery=[0],
             zorder=10,
         )
+        # else:
+        # ax.plot(
+        #    [x_end-read_len, x_end],
+        #    [y_jitt, y_jitt],
+        #    "-",
+        #    color="hotpink",
+        #    alpha=0.25,
+        #    lw=0.5,
+        #    marker="s",
+        #    markersize=marker_size,
+        #    zorder=10,
+        # )
 
         return True
 
