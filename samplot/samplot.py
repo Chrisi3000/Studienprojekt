@@ -1858,7 +1858,6 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                 )
 
                 insert_size = step.info["LENGTH"]
-                print("len:" + str(insert_size) + " --> " + str(insert_size_scaled))
                 x = p[0]
                 y_upper = insert_size + insert_size
 
