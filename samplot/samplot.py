@@ -656,7 +656,7 @@ def get_pairs_plan(ranges, pairs, linked_plan=False):
 
 # {{{def get_pair_plan(ranges, pair, linked_plan=False):
 def get_pair_plan(ranges, pair, linked_plan=False):
-    if pair == None:
+    if pair is None:
         return None
 
     first = pair[0]
@@ -665,9 +665,9 @@ def get_pair_plan(ranges, pair, linked_plan=False):
     first_s_hit = get_range_hit(ranges, first.pos.chrm, first.pos.start)
     first_e_hit = get_range_hit(ranges, first.pos.chrm, first.pos.end)
 
-    if (first_s_hit == None and first_e_hit == None):
+    if first_s_hit is None and first_e_hit is None:
         return None
-    first_hit = first_s_hit if first_s_hit != None else first_e_hit
+    first_hit = first_s_hit if first_s_hit is not None else first_e_hit
 
     start = genome_interval(
         first.pos.chrm,
@@ -698,12 +698,12 @@ def get_pair_plan(ranges, pair, linked_plan=False):
         second_s_hit = get_range_hit(ranges, second.pos.chrm, second.pos.start)
         second_e_hit = get_range_hit(ranges, second.pos.chrm, second.pos.end)
 
-        if (second_s_hit == None and second_e_hit == None):
+        if second_s_hit is None and second_e_hit is None:
             return None
 
         insert_size = get_pair_insert_size(ranges, pair)
 
-        second_hit = second_e_hit if second_e_hit != None else second_s_hit
+        second_hit = second_e_hit if second_e_hit is not None else second_s_hit
 
         end = genome_interval(
             second.pos.chrm,
@@ -719,8 +719,6 @@ def get_pair_plan(ranges, pair, linked_plan=False):
                  "MATE_IS_UNMAPPED": len(pair) != 2 and pair[0].mate_is_unmapped}
 
     return insert_size, step
-
-
 # }}}
 
 # {{{def get_pair_event_type(pe_read):
