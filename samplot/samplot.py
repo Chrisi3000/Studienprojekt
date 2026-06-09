@@ -732,9 +732,10 @@ def get_pair_event_type(pe_read):
         (True, True): "Inversion",
     }
 
-    # Case Mate unmapped (mate either forward or reverse strand)
+    # Case Mate unmapped (read either forward or reverse strand)
     if len(pe_read) != 2 and pe_read[0].mate_is_unmapped:
-        first_strand = True if pe_read[0].strand else False
+        # first strand is True (forward) - our read could be forward or reverse
+        first_strand = pe_read[0].strand if pe_read[0].strand else not pe_read[0].strand
         event_type = event_by_strand[first_strand, not first_strand]
     else:
         event_type = event_by_strand[pe_read[0].strand, pe_read[1].strand]
@@ -784,7 +785,7 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
     x_start = p[0]
     x_end = p[1]
 
-    if "MATE_IS_UNMAPPED" in step.info:
+    if "MATE_IS_UNMAPPED" in step.info and step.info["MATE_IS_UNMAPPED"] == True:
         # if step.strand:
         ax.plot(
             [x_start, x_start + read_len],
