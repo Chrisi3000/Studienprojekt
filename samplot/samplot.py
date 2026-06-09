@@ -663,8 +663,10 @@ def get_pair_plan(ranges, pair, linked_plan=False):
     step = plan_step(start, end, "PAIREND")
 
     step.info = {"TYPE": get_pair_event_type(pair),
-                 "INSERTSIZE": insert_size,
-                 "MATE_IS_UNMAPPED": mate_missing}
+                 "INSERTSIZE": insert_size}
+
+    if mate_missing:
+        step.info["MATE_IS_UNMAPPED"] = second.strand
 
     return insert_size, step
 # }}}
