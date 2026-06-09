@@ -668,6 +668,7 @@ def get_pair_plan(ranges, pair, linked_plan=False):
     if mate_missing:
         step.info["MATE_IS_UNMAPPED"] = first.strand
 
+
     return insert_size, step
 # }}}
 
@@ -745,32 +746,36 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
     x_start = p[0]
     x_end = p[1]
 
-    if "MATE_IS_UNMAPPED" in step.info and step.info["MATE_IS_UNMAPPED"] == True:
-        # if step.strand:
-        ax.plot(
-            [x_start, x_start + read_len],
-            [y_jitt, y_jitt],
-            "-",
-            color="hotpink",
-            alpha=0.25,
-            lw=0.5,
-            marker="s",
-            markersize=marker_size,
-            markevery=[0],
-            zorder=10,
-        )
-        # else:
-        # ax.plot(
-        #    [x_end-read_len, x_end],
-        #    [y_jitt, y_jitt],
-        #    "-",
-        #    color="hotpink",
-        #    alpha=0.25,
-        #    lw=0.5,
-        #    marker="s",
-        #    markersize=marker_size,
-        #    zorder=10,
-        # )
+    if "MATE_IS_UNMAPPED" in step.info:
+        if step.info["MATE_IS_UNMAPPED"] == True:
+            #if mate is on forward strand
+            ax.plot(
+                [x_start, x_end],
+                [y_jitt, y_jitt],
+                "-",
+                color="deeppink",
+                alpha=0.5,
+                # 0.7 instead of 0.5 for better visibility
+                lw=1.0,
+                marker="|",
+                markersize=marker_size,
+                markevery=[0],
+                zorder=10,
+            )
+        else:
+            ax.plot(
+                [x_start, x_end],
+                [y_jitt, y_jitt],
+                "-",
+                color="deeppink",
+                alpha=0.5,
+                # 0.7 instead of 0.5 for better visibility
+                lw=1.0,
+                marker="|",
+                markersize=marker_size,
+                markevery=[1],
+                zorder=10,
+            )
 
         return True
 
