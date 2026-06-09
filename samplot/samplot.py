@@ -643,6 +643,7 @@ def get_pair_plan(ranges, pair, linked_plan=False):
         max(first.pos.start, ranges[first_hit].start),
     )
 
+    insert_size = 0
     if not mate_missing:
         insert_size = get_pair_insert_size(ranges, pair)
 
@@ -652,8 +653,6 @@ def get_pair_plan(ranges, pair, linked_plan=False):
             min(second.pos.end, ranges[second_hit].end),
         )
     else:
-        insert_size = 2000
-
         end = genome_interval(
             first.pos.chrm,
             min(first.pos.end, ranges[first_hit].end),
@@ -666,8 +665,7 @@ def get_pair_plan(ranges, pair, linked_plan=False):
                  "INSERTSIZE": insert_size}
 
     if mate_missing:
-        step.info["MATE_IS_UNMAPPED"] = first.strand
-
+        step.info["MATE_UNMAPPED_STRAND"] = first.strand
 
     return insert_size, step
 # }}}
@@ -741,13 +739,12 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
     color = COLORS[event_type]
 
     y_jitt = jitter(y, 0.9)
-    read_len = step.start_pos.end - step.start_pos.start
 
     x_start = p[0]
     x_end = p[1]
 
-    if "MATE_IS_UNMAPPED" in step.info:
-        if step.info["MATE_IS_UNMAPPED"] == True:
+    if "MATE_UNMAPPED_STRAND" in step.info:
+        if step.info["MATE_UNMAPPED_STRAND"]:
             #if mate is on forward strand
             ax.plot(
                 [x_start, x_end],
@@ -776,24 +773,20 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
                 markevery=[1],
                 zorder=10,
             )
-
-        return True
-
-    # plot the individual pair
-    ax.plot(
-        p,
-        [y, y],
-        "-",
-        color=color,
-        alpha=0.25,
-        lw=0.5,
-        marker="s",
-        markersize=marker_size,
-        zorder=10,
-    )
+    else:
+        ax.plot(
+            p,
+            [y, y],
+            "-",
+            color=color,
+            alpha=0.25,
+            lw=0.5,
+            marker="s",
+            markersize=marker_size,
+            zorder=10,
+        )
 
     return True
-
 
 # }}}
 
