@@ -666,7 +666,7 @@ def get_pair_plan(ranges, pair, linked_plan=False):
                  "INSERTSIZE": insert_size}
 
     if mate_missing:
-        step.info["MATE_IS_UNMAPPED"] = second.strand
+        step.info["MATE_IS_UNMAPPED"] = first.strand
 
     return insert_size, step
 # }}}
