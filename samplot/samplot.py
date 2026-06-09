@@ -27,14 +27,6 @@ logger = logging.getLogger(__name__)
 INTERCHROM_YAXIS = 5000
 
 
-def write_debug_result(filename, message):
-    result_dir = os.path.join("result")
-    if not os.path.exists(result_dir):
-        os.makedirs(result_dir)
-
-    with open(os.path.join(result_dir, filename), "a") as debug_file:
-        debug_file.write(str(message) + "\n")
-
 COLORS = {
     "Deletion/Normal": "black",
     "Deletion": "black",
@@ -439,31 +431,6 @@ def add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp):
     Pysam read is added as simpified PairedEnd instance to pairs
     Also added to linked_reads list if there is an associated MI tag
     """
-    if read.mate_is_unmapped:
-        write_debug_result(
-            "mate_is_unmapped.txt",
-            "\n".join(
-                [
-                    str(read.to_dict()),
-                    "",
-                    "query_name: " + str(read.query_name),
-                    "flag: " + str(read.flag),
-                    "reference_name: " + str(read.reference_name),
-                    "reference_start: " + str(read.reference_start),
-                    "reference_end: " + str(read.reference_end),
-                    "mapping_quality: " + str(read.mapping_quality),
-                    "cigarstring: " + str(read.cigarstring),
-                    "query_sequence: " + str(read.query_sequence),
-                    "query_qualities: " + str(read.query_qualities),
-                    "is_unmapped: " + str(read.is_unmapped),
-                    "is_paired: " + str(read.is_paired),
-                    "is_reverse: " + str(read.is_reverse),
-                    "tags: " + str(read.get_tags()),
-                    "",
-                ]
-            ),
-        )
-
     if read.is_unmapped:
         return
     if not (read.is_paired):
@@ -532,13 +499,6 @@ def sample_normal(max_depth, pairs, z):
         pair = pairs[read_name]
         if len(pair) != 2:
             if pair[0].mate_is_unmapped:
-                write_debug_result(
-                    "sample_normal.txt",
-                    "sample_normal: "
-                    + str(pair[0].pos.start)
-                    + " - "
-                    + str(pair[0].pos.end),
-                )
                 sampled_pairs[read_name] = pair
 
             continue
@@ -660,14 +620,22 @@ def get_pair_plan(ranges, pair, linked_plan=False):
         return None
 
     first = pair[0]
+    mate_missing = len(pair) != 2 and first.mate_is_unmapped
 
-    # make sure both ends are in the plotted region (later also for second)
-    first_s_hit = get_range_hit(ranges, first.pos.chrm, first.pos.start)
-    first_e_hit = get_range_hit(ranges, first.pos.chrm, first.pos.end)
+    if not mate_missing:
+        second = pair[1]
 
-    if first_s_hit is None and first_e_hit is None:
+        # see if they are part of a linked read
+        if not linked_plan and (first.MI or second.MI):
+            return None
+
+        second_hit = get_read_hit(ranges, second)
+        if second_hit is None:
+            return None
+
+    first_hit = get_read_hit(ranges, first)
+    if first_hit is None:
         return None
-    first_hit = first_s_hit if first_s_hit is not None else first_e_hit
 
     start = genome_interval(
         first.pos.chrm,
@@ -675,11 +643,15 @@ def get_pair_plan(ranges, pair, linked_plan=False):
         max(first.pos.start, ranges[first_hit].start),
     )
 
-    if len(pair) != 2 and pair[0].mate_is_unmapped:
-        write_debug_result(
-            "get_pair_plan.txt",
-            "get_pair_plan: " + str(pair[0].pos.start) + " - " + str(pair[0].pos.end),
+    if not mate_missing:
+        insert_size = get_pair_insert_size(ranges, pair)
+
+        end = genome_interval(
+            second.pos.chrm,
+            min(second.pos.end, ranges[second_hit].end),
+            min(second.pos.end, ranges[second_hit].end),
         )
+    else:
         insert_size = 2000
 
         end = genome_interval(
@@ -688,38 +660,24 @@ def get_pair_plan(ranges, pair, linked_plan=False):
             min(first.pos.end, ranges[first_hit].end),
         )
 
-    else:
-        second = pair[1]
-
-        # see if they are part of a linked read
-        if not linked_plan and (first.MI or second.MI):
-            return None
-
-        second_s_hit = get_range_hit(ranges, second.pos.chrm, second.pos.start)
-        second_e_hit = get_range_hit(ranges, second.pos.chrm, second.pos.end)
-
-        if second_s_hit is None and second_e_hit is None:
-            return None
-
-        insert_size = get_pair_insert_size(ranges, pair)
-
-        second_hit = second_e_hit if second_e_hit is not None else second_s_hit
-
-        end = genome_interval(
-            second.pos.chrm,
-            min(second.pos.end, ranges[second_hit].end),
-            min(second.pos.end, ranges[second_hit].end),
-        )
-
     step = plan_step(start, end, "PAIREND")
 
-    event_type = get_pair_event_type(pair)
-    step.info = {"TYPE": event_type,
+    step.info = {"TYPE": get_pair_event_type(pair),
                  "INSERTSIZE": insert_size,
-                 "MATE_IS_UNMAPPED": len(pair) != 2 and pair[0].mate_is_unmapped}
+                 "MATE_IS_UNMAPPED": mate_missing}
 
     return insert_size, step
 # }}}
+
+def get_read_hit(ranges, read):
+    # make sure both ends are in the plotted region
+    s_hit = get_range_hit(ranges, read.pos.chrm, read.pos.start)
+    e_hit = get_range_hit(ranges, read.pos.chrm, read.pos.end)
+
+    if s_hit is None and e_hit is None:
+        return None
+
+    return e_hit if e_hit is not None else s_hit
 
 # {{{def get_pair_event_type(pe_read):
 def get_pair_event_type(pe_read):
@@ -2790,10 +2748,6 @@ def get_read_data(
         all_splits.append(splits)
         all_long_reads.append(long_reads)
         all_linked_reads.append(linked_reads)
-
-        for r in long_reads:
-            with open("/data/result/read_data1.txt", "a") as f:
-                f.write(str(r) + "\n")
 
     read_data = {
         "all_pairs": all_pairs,
