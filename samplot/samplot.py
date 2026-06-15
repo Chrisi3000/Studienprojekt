@@ -760,7 +760,6 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
                 "-",
                 color="magenta",
                 alpha=0.5,
-                # 0.7 instead of 0.5 for better visibility
                 lw=1.0,
                 marker="|",
                 markersize=marker_size,
@@ -774,7 +773,6 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
                 "-",
                 color="magenta",
                 alpha=0.5,
-                # 0.7 instead of 0.5 for better visibility
                 lw=1.0,
                 marker="|",
                 markersize=marker_size,
