@@ -673,8 +673,10 @@ def get_pair_plan(ranges, pair, linked_plan=False):
     return insert_size, step
 # }}}
 
+# {{{def get_read_hit(ranges, read):
 def get_read_hit(ranges, read):
-    # make sure both ends are in the plotted region
+    """Make sure both ends are in the plotted region
+    """
     s_hit = get_range_hit(ranges, read.pos.chrm, read.pos.start)
     e_hit = get_range_hit(ranges, read.pos.chrm, read.pos.end)
 
@@ -682,6 +684,7 @@ def get_read_hit(ranges, read):
         return None
 
     return e_hit if e_hit is not None else s_hit
+# }}}
 
 # {{{def get_pair_event_type(pe_read):
 def get_pair_event_type(pe_read):
