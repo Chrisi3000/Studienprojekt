@@ -3066,6 +3066,7 @@ def plot_legend(fig, legend_fontsize, marker_size):
                 marker_colors.append(color)
                 marker_labels.append(read_type)
     legend_elements = []
+    handler_map = {}
 
     for color in marker_colors:
         legend_elements += [
@@ -3108,11 +3109,12 @@ def plot_legend(fig, legend_fontsize, marker_size):
 
         insertion_handle = Line2D([], [])
         legend_elements.append(insertion_handle)
+        handler_map = {insertion_handle: InsertionHandler()}
 
     fig.legend(
         legend_elements, marker_labels, loc=1, fontsize=legend_fontsize, frameon=False,
         #handler is only defined for insertion
-        handler_map={insertion_handle: InsertionHandler()}
+        handler_map=handler_map
     )
 # }}}
 
