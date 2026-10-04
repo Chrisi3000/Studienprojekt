@@ -718,7 +718,7 @@ def jitter(value, bounds: float = 0.1) -> float:
 
 
 # {{{def plot_pair_plan(ranges, step, ax):
-def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
+def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=None):
     p = [
         map_genome_point_to_range_points(
             ranges, step.start_pos.chrm, step.start_pos.start
@@ -740,23 +740,39 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
     # Offset y-values using jitter to avoid overlapping lines
     y = jitter(y, bounds=jitter_bounds)
 
+    if stepSize is not None: #stair only for paired end reads
+        y = stepSize
+
     event_type = step.info["TYPE"]
     READ_TYPES_USED[event_type] = True
     color = COLORS[event_type]
 
-    y_jitt = jitter(y, 0.9)
+    #y_jitt = jitter(y, 0.9)
     read_len = step.start_pos.end - step.start_pos.start
 
     x_start = p[0]
     x_end = p[1]
 
+
     if "MATE_IS_UNMAPPED" in step.info:
         READ_TYPES_USED["Missing mate paired-end read"] = True
         if step.info["MATE_IS_UNMAPPED"] == True:
+
+            #DEBUG
+            print(
+                "START:", step.start_pos.start,
+                "END:", step.end_pos.end,
+                "p:", p,
+                "INSERT:", step.info["INSERTSIZE"],
+                "stepSize:", stepSize,
+                "y:", y,
+            )
+
             #if mate is on forward strand
             ax.plot(
                 [x_start, x_end],
-                [y_jitt, y_jitt],
+                [y, y],
+                #[y_jitt, y_jitt],
                 "-",
                 color="magenta",
                 alpha=1,
@@ -769,7 +785,8 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
         else:
             ax.plot(
                 [x_start, x_end],
-                [y_jitt, y_jitt],
+                #[y_jitt, y_jitt],
+                [y, y],
                 "-",
                 color="magenta",
                 alpha=1,
@@ -814,8 +831,40 @@ def plot_pairs(
 
     max_event, steps = plan
 
+    # funktioniert nicht: plan.sort(key=lambda step: step.info["START"])
+    steps.sort(key=lambda step: step.start_pos.start)
+
+    stairStep = 0
+    stepHeight = 2
+    '''
+    direction = 1
+    max_stair = ?? (int)
+    '''
+    n_steps_pe = 0
     for step in steps:
-        plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds)
+        if "MATE_IS_UNMAPPED" in step.info: #only count the paired end reads
+            n_steps_pe += 1
+
+    if n_steps_pe > 1:
+        stepHeight = max_event / (n_steps_pe - 1)
+    else:
+        stepHeight = 0
+
+    for step in steps:
+        if "MATE_IS_UNMAPPED" in step.info:
+            if plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=stairStep * stepHeight):
+                stairStep += 1
+        else:
+            plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds)
+
+        #for up/down stairs - ONLY DRAFT NOT TESTED
+        #stairStep += direction
+        '''
+        if stairStep >= max_stair
+            direction = -1
+        else
+            direction = 1
+        '''
 
     if not curr_min_insert_size or curr_min_insert_size > max_event:
         curr_min_insert_size = max_event
