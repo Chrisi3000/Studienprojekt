@@ -26,6 +26,7 @@ from matplotlib.offsetbox import AnchoredText
 logger = logging.getLogger(__name__)
 
 INTERCHROM_YAXIS = 5000
+INSERTION_LENGTH  = 20
 
 COLORS = {
     "Deletion/Normal": "black",
@@ -1164,7 +1165,7 @@ def get_alignments_from_cigar(chrm, curr_pos, strand, cigartuples, reverse=False
             curr_pos += length
             q_pos += length
         elif op == CIGAR_MAP["I"]:
-            if length > 50:
+            if length > INSERTION_LENGTH:
                 alignments.append(
                     Alignment(chrm, curr_pos, curr_pos, strand, q_pos, length)
                 )
@@ -1429,7 +1430,7 @@ def get_long_read_plan(read_name, long_reads, ranges):
         # figure out what the event is
 
         # Insertion prototype
-        if curr.insertion_size > 50:
+        if curr.insertion_size > INSERTION_LENGTH:
             start = genome_interval(curr.pos.chrm, curr.pos.start, curr.pos.start + curr.insertion_size)
             end = genome_interval(curr.pos.chrm, curr.pos.start, curr.pos.start + curr.insertion_size)
             info = {"TYPE": "Insertion", "LENGTH": curr.insertion_size}
@@ -1789,6 +1790,27 @@ def plot_linked_reads(
 
 # }}}
 
+def support_to_linewidth(n_reads):
+    """Translates the number of reads in line width
+    """
+    if n_reads > 10:
+        return 4
+    elif n_reads > 5:
+        return 3
+    elif n_reads > 1:
+        return 3
+    return 1.0
+
+def support_to_color(n_reads):
+    if n_reads > 10:
+        level = 1
+    elif n_reads > 5:
+        level = 0.90
+    elif n_reads > 1:
+        level = 0.80
+    else:
+        level = 0.70
+    return plt.cm.Purples(level)
 
 # {{{def plot_long_reads(long_reads,
 def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_insert_size, limitInsertion, jitter_bounds,yaxis_label_fontsize):
@@ -1808,6 +1830,9 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
     }
 
     ax2 = ax.twinx()
+
+    insertion_clusters = []  # remembers all insertions drawn so far
+    tolerance = 100  # bp
 
     for read_name in long_reads:
         long_read_plan = get_long_read_plan(read_name, long_reads, ranges)
@@ -1864,7 +1889,34 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                 height = max_gap * 1.15 if max_gap > 0 else 10
 
                 curr_max_insert_size = max(curr_max_insert_size, height)
-                ax2.plot([x, x], [insert_size, y_upper], marker=7, markevery=[0], c=colors[event_type], markersize=3,lw=1)
+                #ax2.plot([x, x], [insert_size, y_upper], marker=7, markevery=[0], c=colors[event_type], markersize=3,lw=1)
+
+                chrm = step.start_pos.chrm
+                pos = step.start_pos.start
+
+                # checks if insertion is nearby
+                cluster = None
+                for c in insertion_clusters:
+                    if c["chrm"] == chrm and abs(c["pos"] - pos) <= tolerance:
+                        cluster = c
+                        break
+
+                if cluster is None:
+                    # new insertion: draw the line and remember it
+                    line, = ax2.plot([x, x], [insert_size, y_upper], marker=7,
+                                     markevery=[0], c=support_to_color(1),
+                                     markersize=3, lw=support_to_linewidth(1))
+                    insertion_clusters.append(
+                        {"chrm": chrm, "pos": pos, "reads": {read_name},
+                         "line": line, "x": x, "y_upper": y_upper}
+                    )
+                else:
+                    # same insertion: count read, adjust line width
+                    cluster["reads"].add(read_name)
+                    n_reads = len(cluster["reads"])
+                    cluster["line"].set_linewidth(support_to_linewidth(n_reads))
+                    cluster["line"].set_color(support_to_color(n_reads))
+
 
                 limitInsertion = max(limitInsertion, insert_size)
 
