@@ -19,4 +19,3 @@
 
  TESTAUFRUF
  PAIRED END
- samplot plot -b HG002_Illumina.bam -s 24803000 -e 24810000 -c chr1 -o ./result/Test_INS_pe2.png -t INS
