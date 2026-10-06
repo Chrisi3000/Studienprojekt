@@ -836,6 +836,12 @@ def plot_pairs(
 
     stairStep = 0
     stepHeight = 2
+
+    #barSizes = [0]*len(steps)
+    axRange = ranges[0]
+    axSize = axRange.end - axRange.start
+    print(axSize)
+    barSizes = [0]*axSize
     '''
     direction = 1
     max_stair = ?? (int)
@@ -854,6 +860,7 @@ def plot_pairs(
         if "MATE_IS_UNMAPPED" in step.info:
             if plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=stairStep * stepHeight):
                 stairStep += 1
+                barSizes[steps.index(step)] = random.randint(0,500)
         else:
             plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds)
 
@@ -871,7 +878,7 @@ def plot_pairs(
     if not curr_max_insert_size or curr_max_insert_size < max_event:
         curr_max_insert_size = max_event
 
-    return [curr_min_insert_size, curr_max_insert_size]
+    return [curr_min_insert_size, curr_max_insert_size, barSizes]
 
 
 # }}}
@@ -2908,6 +2915,8 @@ def plot_samples(
         curr_min_insert_size = None
         curr_max_insert_size = 0
 
+        bar_sizes = []
+
         cover_axs = {}
         for hp in hps:
             curr_ax = axs[hp]
@@ -2965,7 +2974,7 @@ def plot_samples(
                     jitter_bounds
                 )
             else:
-                curr_min_insert_size, curr_max_insert_size = plot_pairs(
+                curr_min_insert_size, curr_max_insert_size, bar_sizes = plot_pairs(
                     curr_pairs,
                     curr_ax,
                     ranges,
@@ -2974,6 +2983,8 @@ def plot_samples(
                     marker_size,
                     jitter_bounds
                 )
+
+                print(bar_sizes)
 
                 curr_min_insert_size, curr_max_insert_size = plot_splits(
                     curr_splits,
@@ -3073,12 +3084,38 @@ def plot_samples(
             curr_ax.set_xticklabels(labels, fontsize=xaxis_label_fontsize)
             chrms = [x.chrm for x in ranges]
             curr_ax.set_xlabel("Chromosomal position on " + "/".join(chrms), fontsize=8)
-    
+
         curr_ax = axs[hps[int(len(hps) / 2)]]
         curr_ax.set_ylabel("Insert size", fontsize=8)
         cover_ax = cover_axs[hps[int(len(hps) / 2)]]
         cover_ax.set_ylabel("Coverage", fontsize=8)
+
+        # problem: die x achse vom plotten ist zwischen 0 und 1 unsere liste mit den zahlen
+        # ist zwischen der pos vom ersten und letzten read (also irgendwas mit 100000)
+
+        # Read Numbers / Bar Plot axis
+        bar_ax = curr_ax.twinx()
+        #bar_ax.set_xlim([0, len(bar_sizes)])
+        bar_ax.set_xlim(curr_ax.get_xlim())
+        #bar_ax.set_ylim([0, max(bar_sizes) + 1])
+        bar_ax.spines["right"].set_position(("outward", 40))
+        bar_ax.spines["top"].set_visible(False)
+        bar_ax.spines["bottom"].set_visible(False)
+        bar_ax.spines["left"].set_visible(False)
+        bar_ax.spines["right"].set_visible(True)
+        bar_ax.tick_params(
+            axis="y",
+            right=True,
+            labelright=True,
+            length=0
+        )
+        bar_ax.set_ylabel("Number of Reads", fontsize=8, labelpad=10)
+
         # }}}
+
+        #ax.bar(range(len(bar_sizes)), bar_sizes, color='royalblue', alpha=0.7)
+        #curr_ax.bar(range(len(bar_sizes)), bar_sizes, color='yellow', alpha=0.7)
+        bar_ax.bar(range(len(bar_sizes)), bar_sizes, color='royalblue', alpha=0.7)
 
         ax_i += 1
     return ax_i
@@ -3152,8 +3189,8 @@ def plot_legend(fig, legend_fontsize, marker_size):
                 [0, 1],
                 [0, 0],
                 markerfacecolor="None",
-                markeredgecolor="magenta",
-                color="magenta",
+                markeredgecolor="cyan",
+                color="cyan",
                 marker="|",
                 markersize=marker_size*1.5,
                 linestyle="-",
@@ -3162,6 +3199,36 @@ def plot_legend(fig, legend_fontsize, marker_size):
             )
         ]
 
+    if READ_TYPES_USED["Missing mate paired-end read"]:
+        marker_labels.append("Missing mate paired-end read")
+        legend_elements += [
+            plt.Line2D(
+                [0, 1],
+                [0.1, 0.1],
+                markerfacecolor="None",
+                markeredgecolor="magenta",
+                color="magenta",
+                marker="|",
+                markersize=marker_size * 1.5,
+                linestyle="-",
+                lw=0.5,
+                markevery=[0]
+            )
+        ]
+        legend_elements += [
+            plt.Line2D(
+                [0, 1],
+                [0, 0],
+                markerfacecolor="None",
+                markeredgecolor="cyan",
+                color="cyan",
+                marker="|",
+                markersize=marker_size * 1.5,
+                linestyle="-",
+                lw=0.5,
+                markevery=[0]
+            )
+        ]
 
     fig.legend(
         legend_elements, marker_labels, loc=1, fontsize=legend_fontsize, frameon=False
