@@ -8,6 +8,8 @@ samplot plot -b HG002_PacBio_48x_GRCh38_Chr19.bam -s 23753100 -e 23753700 -c chr
 
 Paired-End Reads:
 samplot plot -b HG002_Illumina.bam -s 24800000 -e 24810000 -c chr1 -o ./result/HG002_Illumina.png -t INS
+samplot plot -b HG002_Illumina.bam -s 24803000 -e 24810000 -c chr1 -o ./result/Test_INS_pe2.png -t INS
+samplot plot -b HG002_Illumina.bam -s 24810000 -e 24820000 -c chr1 -o ./result/Test_Stair05_try1.png -t INS
 
 Extract Chromosomes
 samtools view -b HG002_PacBio-HiFi-Revio_20231031_48x_GRCh38-GIABv3.bam chr19 > HG002_PacBio_48x_GRCh38_Chr19.bam
