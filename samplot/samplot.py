@@ -26,7 +26,7 @@ from matplotlib.offsetbox import AnchoredText
 logger = logging.getLogger(__name__)
 
 INTERCHROM_YAXIS = 5000
-INSERTION_LENGTH  = 20
+INSERTION_LENGTH  = 50
 
 COLORS = {
     "Deletion/Normal": "black",
@@ -1794,12 +1794,12 @@ def support_to_linewidth(n_reads):
     """Translates the number of reads in line width
     """
     if n_reads > 10:
-        return 4
+        return 2.0
     elif n_reads > 5:
-        return 3
+        return 1.6
     elif n_reads > 1:
-        return 3
-    return 1.0
+        return 1.2
+    return 0.8
 
 def support_to_color(n_reads):
     if n_reads > 10:
@@ -1831,8 +1831,7 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
 
     ax2 = ax.twinx()
 
-    insertion_clusters = []  # remembers all insertions drawn so far
-    tolerance = 100  # bp
+    insertion_clusters = {}  # remembers all insertions drawn so far
 
     for read_name in long_reads:
         long_read_plan = get_long_read_plan(read_name, long_reads, ranges)
@@ -1884,27 +1883,25 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                 curr_max_insert_size = max(curr_max_insert_size, height)
                 #ax2.plot([x, x], [insert_size, y_upper], marker=7, markevery=[0], c=colors[event_type], markersize=3,lw=1)
 
+                # checks if insertion is nearby
                 chrm = step.start_pos.chrm
                 pos = step.start_pos.start
 
-                # checks if insertion is nearby
-                cluster = None
-                for c in insertion_clusters:
-                    if c["chrm"] == chrm and abs(c["pos"] - pos) <= tolerance:
-                        cluster = c
-                        break
+                # same chromosome and exactly the same position?
+                key = (chrm, pos)
+                cluster = insertion_clusters.get(key)
 
                 if cluster is None:
                     # new insertion: draw the line and remember it
                     line, = ax2.plot([x, x], [insert_size, y_upper], marker=7,
                                      markevery=[0], c=support_to_color(1),
                                      markersize=3, lw=support_to_linewidth(1))
-                    insertion_clusters.append(
-                        {"chrm": chrm, "pos": pos, "reads": {read_name},
-                         "line": line, "x": x, "y_upper": y_upper}
-                    )
+                    insertion_clusters[key] = {
+                        "reads": {read_name},
+                        "line": line, "x": x, "y_upper": y_upper
+                    }
                 else:
-                    # same insertion: count read, adjust line width
+                    # same insertion: count read, adjust line width and color
                     cluster["reads"].add(read_name)
                     n_reads = len(cluster["reads"])
                     cluster["line"].set_linewidth(support_to_linewidth(n_reads))
@@ -2749,10 +2746,6 @@ def get_read_data(
         all_long_reads.append(long_reads)
         all_linked_reads.append(linked_reads)
 
-        for r in long_reads:
-            with open("/data/result/read_data1.txt", "a") as f:
-                f.write(str(r) + "\n")
-
     read_data = {
         "all_pairs": all_pairs,
         "all_splits": all_splits,
@@ -2768,12 +2761,6 @@ def get_read_data(
         )
     if not same_yaxis_scales:
         max_coverage = 0
-
-
-    # TESTING print long reads - check if insertion still here
-    for r in read_data["all_long_reads"]:
-        with open("/data/result/read_data2.txt", "w") as f:
-            f.write(str(r) + "\n")
 
     return read_data, max_coverage
 
