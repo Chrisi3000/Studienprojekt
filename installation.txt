@@ -19,3 +19,8 @@
  - Getting out of bash:
     exit
  - If problems with container it can be restartet through docker desktop
+
+ TESTAUFRUF
+ PAIRED END
+ samplot plot -b HG002_Illumina.bam -s 24803000 -e 24810000 -c chr1 -o ./result/Test_INS_pe2.png -t INS
+ samplot plot -b HG002_Illumina.bam -s 24810000 -e 24820000 -c chr1 -o ./result/Test_Stair05_try1.png -t INS

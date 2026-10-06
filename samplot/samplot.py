@@ -1849,24 +1849,17 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
 
                 curr_max_insert_size = max(curr_max_insert_size, max_gap)
             elif event_type == "Insertion":
-                range_hit = get_range_hit(ranges, step.start_pos.chrm, step.start_pos.start)
-                range_width = 1.0 / len(ranges)
 
-                insert_size_scaled = range_width * (
-                        step.info["LENGTH"] /
-                        (ranges[range_hit].end - ranges[range_hit].start)
-                )
-
-                insert_size = step.info["LENGTH"]
+                insertion_length = step.info["LENGTH"]
                 x = p[0]
-                y_upper = insert_size + insert_size
+                y_upper = insertion_length + insertion_length
 
                 height = max_gap * 1.15 if max_gap > 0 else 10
 
                 curr_max_insert_size = max(curr_max_insert_size, height)
-                ax2.plot([x, x], [insert_size, y_upper], marker=7, markevery=[0], c=colors[event_type], markersize=3,lw=1)
+                ax2.plot([x, x], [insertion_length, y_upper], marker=7, markevery=[0], c=colors[event_type], markersize=3,lw=1)
 
-                limitInsertion = max(limitInsertion, insert_size)
+                limitInsertion = max(limitInsertion, insertion_length)
 
             else:
                 x1 = p[0]
