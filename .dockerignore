@@ -1,0 +1,9 @@
+test/data/
+*.bam
+*.bai
+*.sam
+*.fastq
+*.fastq.gz
+*.csv
+.git
+__pycache__/
