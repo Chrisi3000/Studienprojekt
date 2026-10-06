@@ -1907,7 +1907,6 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                     cluster["line"].set_linewidth(support_to_linewidth(n_reads))
                     cluster["line"].set_color(support_to_color(n_reads))
 
-
                 limitInsertion = max(limitInsertion, insertion_length)
 
             else:
