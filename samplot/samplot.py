@@ -9,6 +9,9 @@ import sys
 from argparse import SUPPRESS
 
 import matplotlib
+from matplotlib.legend_handler import HandlerBase
+from matplotlib.lines import Line2D
+
 matplotlib.use("Agg") #must be before imports of submodules in matplotlib
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
@@ -788,7 +791,7 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=None):
                 #[y_jitt, y_jitt],
                 [y, y],
                 "-",
-                color="magenta",
+                color="cyan",
                 alpha=1,
                 lw=1.0,
                 marker="|",
@@ -841,7 +844,7 @@ def plot_pairs(
     axRange = ranges[0]
     axSize = axRange.end - axRange.start
     print(axSize)
-    barSizes = [0]*axSize
+    #barSizes = [0]*axSize
     '''
     direction = 1
     max_stair = ?? (int)
@@ -860,7 +863,7 @@ def plot_pairs(
         if "MATE_IS_UNMAPPED" in step.info:
             if plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=stairStep * stepHeight):
                 stairStep += 1
-                barSizes[steps.index(step)] = random.randint(0,500)
+                #barSizes[steps.index(step)] = random.randint(0,500)
         else:
             plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds)
 
@@ -878,7 +881,8 @@ def plot_pairs(
     if not curr_max_insert_size or curr_max_insert_size < max_event:
         curr_max_insert_size = max_event
 
-    return [curr_min_insert_size, curr_max_insert_size, barSizes]
+    #return [curr_min_insert_size, curr_max_insert_size, barSizes]
+    return [curr_min_insert_size, curr_max_insert_size]
 
 
 # }}}
@@ -2915,7 +2919,7 @@ def plot_samples(
         curr_min_insert_size = None
         curr_max_insert_size = 0
 
-        bar_sizes = []
+        #bar_sizes = []
 
         cover_axs = {}
         for hp in hps:
@@ -2974,7 +2978,7 @@ def plot_samples(
                     jitter_bounds
                 )
             else:
-                curr_min_insert_size, curr_max_insert_size, bar_sizes = plot_pairs(
+                curr_min_insert_size, curr_max_insert_size = plot_pairs(
                     curr_pairs,
                     curr_ax,
                     ranges,
@@ -2984,7 +2988,16 @@ def plot_samples(
                     jitter_bounds
                 )
 
-                print(bar_sizes)
+                #curr_min_insert_size, curr_max_insert_size, bar_sizes = plot_pairs(
+                #    curr_pairs,
+                #    curr_ax,
+                #    ranges,
+                #    curr_min_insert_size,
+                #    curr_max_insert_size,
+                #    marker_size,
+                #    jitter_bounds
+                #)
+                #print(bar_sizes)
 
                 curr_min_insert_size, curr_max_insert_size = plot_splits(
                     curr_splits,
@@ -3094,34 +3107,63 @@ def plot_samples(
         # ist zwischen der pos vom ersten und letzten read (also irgendwas mit 100000)
 
         # Read Numbers / Bar Plot axis
-        bar_ax = curr_ax.twinx()
+        #bar_ax = curr_ax.twinx()
         #bar_ax.set_xlim([0, len(bar_sizes)])
-        bar_ax.set_xlim(curr_ax.get_xlim())
+        #bar_ax.set_xlim(curr_ax.get_xlim())
         #bar_ax.set_ylim([0, max(bar_sizes) + 1])
-        bar_ax.spines["right"].set_position(("outward", 40))
-        bar_ax.spines["top"].set_visible(False)
-        bar_ax.spines["bottom"].set_visible(False)
-        bar_ax.spines["left"].set_visible(False)
-        bar_ax.spines["right"].set_visible(True)
-        bar_ax.tick_params(
-            axis="y",
-            right=True,
-            labelright=True,
-            length=0
-        )
-        bar_ax.set_ylabel("Number of Reads", fontsize=8, labelpad=10)
+        #bar_ax.spines["right"].set_position(("outward", 40))
+        #bar_ax.spines["top"].set_visible(False)
+        #bar_ax.spines["bottom"].set_visible(False)
+        #bar_ax.spines["left"].set_visible(False)
+        #bar_ax.spines["right"].set_visible(True)
+        #bar_ax.tick_params(
+        #    axis="y",
+        #    right=True,
+        #    labelright=True,
+        #    length=0
+        #)
+        #bar_ax.set_ylabel("Number of Reads", fontsize=8, labelpad=10)
 
         # }}}
 
         #ax.bar(range(len(bar_sizes)), bar_sizes, color='royalblue', alpha=0.7)
         #curr_ax.bar(range(len(bar_sizes)), bar_sizes, color='yellow', alpha=0.7)
-        bar_ax.bar(range(len(bar_sizes)), bar_sizes, color='royalblue', alpha=0.7)
+        #bar_ax.bar(range(len(bar_sizes)), bar_sizes, color='royalblue', alpha=0.7)
 
         ax_i += 1
     return ax_i
-
-
 # }}}
+
+class TwoColorLine:
+    def __init__(self, color1, color2):
+        self.color1 = color1
+        self.color2 = color2
+
+class TwoColorLineHandler(HandlerBase):
+    def create_artists(
+        self,legend, orig_handle,xdescent, ydescent,
+        width, height,fontsize,trans
+    ):
+        y = ydescent + height/2
+        x_mid = xdescent + width/2
+        left = Line2D(
+            [xdescent, x_mid], [y, y],
+            color=orig_handle.color1,
+            linewidth=1.5,
+            transform=trans
+        )
+
+        right = Line2D(
+            [x_mid, xdescent+width], [y, y],
+            color=orig_handle.color2,
+            linewidth=1.5,
+            transform=trans
+        )
+
+        return  [left, right]
+
+from matplotlib.lines import Line2D
+from matplotlib.legend_handler import HandlerBase
 
 # {{{def plot_legend(fig, legend_fontsize):
 def plot_legend(fig, legend_fontsize, marker_size):
@@ -3184,57 +3226,15 @@ def plot_legend(fig, legend_fontsize, marker_size):
 
     if READ_TYPES_USED["Missing mate paired-end read"]:
         marker_labels.append("Missing mate paired-end read")
-        legend_elements += [
-            plt.Line2D(
-                [0, 1],
-                [0, 0],
-                markerfacecolor="None",
-                markeredgecolor="cyan",
-                color="cyan",
-                marker="|",
-                markersize=marker_size*1.5,
-                linestyle="-",
-                lw=1,
-                markevery=[0]
-            )
-        ]
 
-    if READ_TYPES_USED["Missing mate paired-end read"]:
-        marker_labels.append("Missing mate paired-end read")
-        legend_elements += [
-            plt.Line2D(
-                [0, 1],
-                [0.1, 0.1],
-                markerfacecolor="None",
-                markeredgecolor="magenta",
-                color="magenta",
-                marker="|",
-                markersize=marker_size * 1.5,
-                linestyle="-",
-                lw=0.5,
-                markevery=[0]
-            )
-        ]
-        legend_elements += [
-            plt.Line2D(
-                [0, 1],
-                [0, 0],
-                markerfacecolor="None",
-                markeredgecolor="cyan",
-                color="cyan",
-                marker="|",
-                markersize=marker_size * 1.5,
-                linestyle="-",
-                lw=0.5,
-                markevery=[0]
-            )
-        ]
+        legend_elements.append(
+            TwoColorLine("magenta", "cyan")
+        )
 
     fig.legend(
-        legend_elements, marker_labels, loc=1, fontsize=legend_fontsize, frameon=False
+        legend_elements,marker_labels,loc=1,fontsize=legend_fontsize,frameon=False,
+        handler_map={TwoColorLine: TwoColorLineHandler()}
     )
-
-
 # }}}
 
 # {{{def create_gridspec(bams, transcript_file, annotation_files, sv_type ):
