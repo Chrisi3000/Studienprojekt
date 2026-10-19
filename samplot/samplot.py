@@ -265,6 +265,27 @@ def add_coverage(read, coverage_matrix, offset, column):
 
 # }}}
 
+# {{{def add_unmapped_mate_interval(read, counts, offset, range_end):
+def add_unmapped_mate_interval(read, counts, offset, range_end):
+    """Adds the mapped interval of a read whose mate is unmapped."""
+    if (
+        read.is_unmapped
+        or not read.is_paired
+        or read.is_secondary
+        or read.is_supplementary
+        or not read.mate_is_unmapped
+    ):
+        return
+
+    start = max(read.reference_start, offset)
+    end = min(read.reference_end, range_end)
+    if start < end:
+        strand_column = 1 if read.is_reverse else 0
+        counts[start - offset:end - offset, strand_column] += 1
+
+
+# }}}
+
 # {{{def plot_coverage(coverage,
 def plot_coverage(
     coverage,
@@ -380,6 +401,58 @@ def plot_coverage(
 
     return ax2
 
+
+# }}}
+
+# {{{def plot_unmapped_mate_bars(counts, ax, ranges, yaxis_label_fontsize):
+def plot_unmapped_mate_bars(counts, ax, ranges, yaxis_label_fontsize):
+    """Plots mapped intervals whose paired mate is unmapped."""
+    bar_x = {0: [], 1: []}
+    bar_y = {0: [], 1: []}
+    bar_width = {0: [], 1: []}
+
+    for range_index, r in enumerate(ranges):
+        region_len = r.end - r.start
+        if region_len <= 0:
+            continue
+        scale = 1.0 / len(ranges)
+        width = scale / region_len
+        for position in range(r.start, r.end):
+            values = counts.get(r.chrm, {}).get(position, (0, 0))
+            for strand_column in (0, 1):
+                value = values[strand_column]
+                if value:
+                    bar_x[strand_column].append(
+                        scale * range_index + scale * (position - r.start) / region_len
+                    )
+                    bar_y[strand_column].append(value)
+                    bar_width[strand_column].append(width)
+
+    max_bar_height = max((max(values) for values in bar_y.values() if values), default=0)
+    if max_bar_height == 0:
+        return None
+
+    bar_ax = ax.twinx()
+    bar_ax.spines["right"].set_position(("outward", 40))
+    bar_ax.spines["right"].set_color("grey")
+    bar_ax.spines["top"].set_visible(False)
+    bar_ax.spines["bottom"].set_visible(False)
+    bar_ax.spines["left"].set_visible(False)
+    bar_ax.spines["right"].set_visible(True)
+    bar_ax.tick_params( axis="y", colors="grey", labelsize=yaxis_label_fontsize)
+    bar_ax.set_ylabel("Unmapped Read Count", fontsize=8, labelpad=10)
+
+    for strand_column, color in ((0, "magenta"), (1, "cyan")):
+        bar_ax.bar(
+            bar_x[strand_column],
+            bar_y[strand_column],
+            width=bar_width[strand_column],
+            align="edge",
+            color=color,
+            alpha=0.35,
+            linewidth=0,
+        )
+    return bar_ax
 
 # }}}
 
@@ -2698,6 +2771,7 @@ def get_read_data(
     all_coverages = []
     all_long_reads = []
     all_linked_reads = []
+    all_unmapped_mate_counts = []
 
     max_coverage = 0
     haplotypes = [0, 1, 2]
@@ -2721,6 +2795,7 @@ def get_read_data(
         splits = {}
         long_reads = {}
         coverage = {hp: {} for hp in haplotypes}
+        unmapped_mate_counts = {hp: {} for hp in haplotypes}
         linked_reads = {}
 
         for r in ranges:
@@ -2749,6 +2824,7 @@ def get_read_data(
             # all coverage will be in the second column.
             range_len = range_end - range_start
             range_hp_coverage = {hp: np.zeros((range_len, 2), dtype=int) for hp in haplotypes}
+            range_unmapped_mate_counts = {hp: np.zeros((range_len, 2), dtype=int) for hp in haplotypes}
 
             for read in bam_iter:
                 if (
@@ -2765,6 +2841,13 @@ def get_read_data(
                     else:
                         add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp)
                         add_split(read, splits, bam_file, linked_reads, ignore_hp)
+                        hp = 0 if ignore_hp or not read.has_tag("HP") else read.get_tag("HP")
+                        add_unmapped_mate_interval(
+                            read,
+                            range_unmapped_mate_counts[hp],
+                            range_start,
+                            range_end,
+                        )
 
                 # Add read coverage to the specified haplotype and column
                 hp = 0 if ignore_hp or not read.has_tag("HP") else read.get_tag("HP")
@@ -2774,11 +2857,21 @@ def get_read_data(
             # Tally the coverage for each position and updata coverage dict.
             for hp, range_coverage in range_hp_coverage.items():
                 # Skip empty haplotypes
-                if (range_coverage.sum() == 0).all():
+                if  (range_coverage.sum() == 0).all():
                     continue
 
                 for position in range(range_start, range_end):
                     coverage[hp][chrm][position] = list(range_coverage[position-range_start])
+
+                if range_unmapped_mate_counts[hp].sum() > 0:
+                    unmapped_mate_counts[hp].setdefault(chrm, {})
+                    for position in range(range_start, range_end):
+                        values = range_unmapped_mate_counts[hp][position - range_start]
+                        if values.any():
+                            unmapped_mate_counts[hp][chrm][position] = [
+                                int(values[0]),
+                                int(values[1]),
+                            ]
 
         if (
             len(pairs) == 0
@@ -2818,6 +2911,7 @@ def get_read_data(
         all_splits.append(splits)
         all_long_reads.append(long_reads)
         all_linked_reads.append(linked_reads)
+        all_unmapped_mate_counts.append(unmapped_mate_counts)
 
     read_data = {
         "all_pairs": all_pairs,
@@ -2825,6 +2919,7 @@ def get_read_data(
         "all_coverages": all_coverages,
         "all_long_reads": all_long_reads,
         "all_linked_reads": all_linked_reads,
+        "all_unmapped_mate_counts": all_unmapped_mate_counts,
     }
 
     # Sample +/- pairs in the normal insert size range
@@ -2919,8 +3014,6 @@ def plot_samples(
         curr_min_insert_size = None
         curr_max_insert_size = 0
 
-        #bar_sizes = []
-
         cover_axs = {}
         for hp in hps:
             curr_ax = axs[hp]
@@ -2944,6 +3037,10 @@ def plot_samples(
             curr_coverage = {}
             if hp in read_data["all_coverages"][i]:
                 curr_coverage = read_data["all_coverages"][i][hp]
+
+            curr_unmapped_mate_counts = {}
+            if hp in read_data["all_unmapped_mate_counts"][i]:
+                curr_unmapped_mate_counts = read_data["all_unmapped_mate_counts"][i][hp]
 
             cover_ax = plot_coverage(
                 curr_coverage,
@@ -2988,17 +3085,6 @@ def plot_samples(
                     jitter_bounds
                 )
 
-                #curr_min_insert_size, curr_max_insert_size, bar_sizes = plot_pairs(
-                #    curr_pairs,
-                #    curr_ax,
-                #    ranges,
-                #    curr_min_insert_size,
-                #    curr_max_insert_size,
-                #    marker_size,
-                #    jitter_bounds
-                #)
-                #print(bar_sizes)
-
                 curr_min_insert_size, curr_max_insert_size = plot_splits(
                     curr_splits,
                     curr_ax,
@@ -3009,6 +3095,12 @@ def plot_samples(
                     jitter_bounds,
                 )
 
+            plot_unmapped_mate_bars(
+                curr_unmapped_mate_counts,
+                curr_ax,
+                ranges,
+                yaxis_label_fontsize,
+            )
             cover_axs[hp] = cover_ax
             if curr_max_insert_size and (curr_max_insert_size > max_insert_size):
                 max_insert_size = curr_max_insert_size
@@ -3102,33 +3194,6 @@ def plot_samples(
         curr_ax.set_ylabel("Insert size", fontsize=8)
         cover_ax = cover_axs[hps[int(len(hps) / 2)]]
         cover_ax.set_ylabel("Coverage", fontsize=8)
-
-        # problem: die x achse vom plotten ist zwischen 0 und 1 unsere liste mit den zahlen
-        # ist zwischen der pos vom ersten und letzten read (also irgendwas mit 100000)
-
-        # Read Numbers / Bar Plot axis
-        #bar_ax = curr_ax.twinx()
-        #bar_ax.set_xlim([0, len(bar_sizes)])
-        #bar_ax.set_xlim(curr_ax.get_xlim())
-        #bar_ax.set_ylim([0, max(bar_sizes) + 1])
-        #bar_ax.spines["right"].set_position(("outward", 40))
-        #bar_ax.spines["top"].set_visible(False)
-        #bar_ax.spines["bottom"].set_visible(False)
-        #bar_ax.spines["left"].set_visible(False)
-        #bar_ax.spines["right"].set_visible(True)
-        #bar_ax.tick_params(
-        #    axis="y",
-        #    right=True,
-        #    labelright=True,
-        #    length=0
-        #)
-        #bar_ax.set_ylabel("Number of Reads", fontsize=8, labelpad=10)
-
-        # }}}
-
-        #ax.bar(range(len(bar_sizes)), bar_sizes, color='royalblue', alpha=0.7)
-        #curr_ax.bar(range(len(bar_sizes)), bar_sizes, color='yellow', alpha=0.7)
-        #bar_ax.bar(range(len(bar_sizes)), bar_sizes, color='royalblue', alpha=0.7)
 
         ax_i += 1
     return ax_i
