@@ -37,6 +37,8 @@ COLORS = {
     "Inversion": "blue",
     "InterChrmInversion": "blue",
     "InterChrm": "black",
+    "Missing mate paired-end read 1": "magenta",
+    "Missing mate paired-end read 2": "cyan"
 }
 
 READ_TYPES_USED = {
@@ -385,7 +387,6 @@ def plot_coverage(
     tick_count = max(int(max_plot_depth / tick_count), 1)
 
     # set axis parameters
-    #ax2.yaxis.set_major_locator(ticker.FixedLocator(tick_count))
     ax2.yaxis.set_major_locator(ticker.MultipleLocator(tick_count))
     ax2.tick_params(axis="y", colors="grey", labelsize=yaxis_label_fontsize)
     ax2.spines["top"].set_visible(False)
@@ -442,7 +443,8 @@ def plot_unmapped_mate_bars(counts, ax, ranges, yaxis_label_fontsize):
     bar_ax.tick_params( axis="y", colors="grey", labelsize=yaxis_label_fontsize)
     bar_ax.set_ylabel("Unmapped Read Count", fontsize=8, labelpad=10)
 
-    for strand_column, color in ((0, "magenta"), (1, "cyan")):
+    for strand_column, color in ((0, COLORS["Missing mate paired-end read 1"]),
+                                 (1, COLORS["Missing mate paired-end read 2"])):
         bar_ax.bar(
             bar_x[strand_column],
             bar_y[strand_column],
@@ -823,34 +825,18 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=None):
     READ_TYPES_USED[event_type] = True
     color = COLORS[event_type]
 
-    #y_jitt = jitter(y, 0.9)
-    read_len = step.start_pos.end - step.start_pos.start
-
     x_start = p[0]
     x_end = p[1]
-
 
     if "MATE_IS_UNMAPPED" in step.info:
         READ_TYPES_USED["Missing mate paired-end read"] = True
         if step.info["MATE_IS_UNMAPPED"] == True:
-
-            #DEBUG
-            print(
-                "START:", step.start_pos.start,
-                "END:", step.end_pos.end,
-                "p:", p,
-                "INSERT:", step.info["INSERTSIZE"],
-                "stepSize:", stepSize,
-                "y:", y,
-            )
-
             #if mate is on forward strand
             ax.plot(
                 [x_start, x_end],
                 [y, y],
-                #[y_jitt, y_jitt],
                 "-",
-                color="magenta",
+                color=COLORS["Missing mate paired-end read 1"],
                 alpha=1,
                 lw=1.0,
                 marker="|",
@@ -861,10 +847,9 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=None):
         else:
             ax.plot(
                 [x_start, x_end],
-                #[y_jitt, y_jitt],
                 [y, y],
                 "-",
-                color="cyan",
+                color=COLORS["Missing mate paired-end read 2"],
                 alpha=1,
                 lw=1.0,
                 marker="|",
@@ -907,21 +892,14 @@ def plot_pairs(
 
     max_event, steps = plan
 
-    # funktioniert nicht: plan.sort(key=lambda step: step.info["START"])
     steps.sort(key=lambda step: step.start_pos.start)
 
     stairStep = 0
-    stepHeight = 2
 
-    #barSizes = [0]*len(steps)
     axRange = ranges[0]
     axSize = axRange.end - axRange.start
     print(axSize)
-    #barSizes = [0]*axSize
-    '''
-    direction = 1
-    max_stair = ?? (int)
-    '''
+
     n_steps_pe = 0
     for step in steps:
         if "MATE_IS_UNMAPPED" in step.info: #only count the paired end reads
@@ -936,27 +914,15 @@ def plot_pairs(
         if "MATE_IS_UNMAPPED" in step.info:
             if plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=stairStep * stepHeight):
                 stairStep += 1
-                #barSizes[steps.index(step)] = random.randint(0,500)
         else:
             plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds)
-
-        #for up/down stairs - ONLY DRAFT NOT TESTED
-        #stairStep += direction
-        '''
-        if stairStep >= max_stair
-            direction = -1
-        else
-            direction = 1
-        '''
 
     if not curr_min_insert_size or curr_min_insert_size > max_event:
         curr_min_insert_size = max_event
     if not curr_max_insert_size or curr_max_insert_size < max_event:
         curr_max_insert_size = max_event
 
-    #return [curr_min_insert_size, curr_max_insert_size, barSizes]
     return [curr_min_insert_size, curr_max_insert_size]
-
 
 # }}}
 
@@ -3242,6 +3208,8 @@ def plot_legend(fig, legend_fontsize, marker_size):
         "Inversion": "blue",
         "Aligned long read": "orange",
         "Linked read": "green",
+        "Missing mate paired-end read 1": "magenta",
+        "Missing mate paired-end read 2": "cyan"
     }
 
     for read_type in READ_TYPES_USED:
@@ -3293,7 +3261,8 @@ def plot_legend(fig, legend_fontsize, marker_size):
         marker_labels.append("Missing mate paired-end read")
 
         legend_elements.append(
-            TwoColorLine("magenta", "cyan")
+            TwoColorLine(read_colors["Missing mate paired-end read 1"],
+                         read_colors["Missing mate paired-end read 2"])
         )
 
     fig.legend(
