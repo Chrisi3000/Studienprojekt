@@ -1803,7 +1803,7 @@ def support_to_linewidth(n_reads):
 
 def support_to_color(n_reads):
     if n_reads > 10:
-        level = 1
+        level = 0.99
     elif n_reads > 5:
         level = 0.90
     elif n_reads > 1:
@@ -1893,7 +1893,7 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
 
                 if cluster is None:
                     # new insertion: draw the line and remember it
-                    line, = ax2.plot([x, x], [insert_size, y_upper], marker=7,
+                    line, = ax2.plot([x, x], [insertion_length, y_upper], marker=7,
                                      markevery=[0], c=support_to_color(1),
                                      markersize=3, lw=support_to_linewidth(1))
                     insertion_clusters[key] = {
