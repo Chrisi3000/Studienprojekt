@@ -12,5 +12,34 @@ samplot plot -b HG002_Illumina.bam -s 24803000 -e 24810000 -c chr1 -o ./result/T
 samplot plot -b HG002_Illumina.bam -s 24810000 -e 24820000 -c chr1 -o ./result/Test_Stair05_try1.png -t INS
 
 Extract Chromosomes
+sudo mount -t drvfs D: /mnt/d
+cd /mnt/d
+
+samtools view -b \
+  -L regions.bed \
+  -o HG002_PacBio_Insertion.bam \
+  HG002_PacBio-HiFi-Revio_20231031_48x_GRCh38-GIABv3.bam
+
+samtools index HG002_PacBio_Insertions.bam
+
+regions.bed:
+chr1    4518723     4522723
+chr1    16164229     16168229
+chr1    103201759     103205759
+chr1    205362906     205366906
+chr1    241186220     241190220
+chr1    24728337     24732337
+chr2    235534158     235538158
+chr2    240902616     240906616
+chr3    124985952     124989952
+chr3    145480891     145484891
+chr7    51897408     51901408
+chr13    66144710     66148710
+chr15    74080289     74084289
+chr19    23751136     23755136
+chr4    35785000      35789000
+chr9    73295364      73299364
+
+
 samtools view -b HG002_PacBio-HiFi-Revio_20231031_48x_GRCh38-GIABv3.bam chr19 > HG002_PacBio_48x_GRCh38_Chr19.bam
 samtools index HG002_PacBio_48x_GRCh38_Chr19.bam
