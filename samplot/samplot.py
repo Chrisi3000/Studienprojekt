@@ -10,6 +10,9 @@ from argparse import SUPPRESS
 from typing import Final
 
 import matplotlib
+from matplotlib.legend_handler import HandlerBase
+from matplotlib.lines import Line2D
+
 matplotlib.use("Agg") #must be before imports of submodules in matplotlib
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
@@ -36,6 +39,8 @@ COLORS = {
     "InterChrmInversion": "blue",
     "InterChrm": "black",
     "Insertion" : "purple",
+    "Missing mate paired-end read 1": "magenta",
+    "Missing mate paired-end read 2": "cyan"
 }
 
 READ_TYPES_USED = {
@@ -47,6 +52,7 @@ READ_TYPES_USED = {
     "Linked read": False,
     "Split-read": False,
     "Paired-end read": False,
+    "Missing mate paired-end read": False
 }
 
 # pysam.readthedocs.io/en/latest/api.html#pysam.AlignedSegment.cigartuples
@@ -264,6 +270,27 @@ def add_coverage(read, coverage_matrix, offset, column):
 
 # }}}
 
+# {{{def add_unmapped_mate_interval(read, counts, offset, range_end):
+def add_unmapped_mate_interval(read, counts, offset, range_end):
+    """Adds the mapped interval of a read whose mate is unmapped."""
+    if (
+        read.is_unmapped
+        or not read.is_paired
+        or read.is_secondary
+        or read.is_supplementary
+        or not read.mate_is_unmapped
+    ):
+        return
+
+    start = max(read.reference_start, offset)
+    end = min(read.reference_end, range_end)
+    if start < end:
+        strand_column = 1 if read.is_reverse else 0
+        counts[start - offset:end - offset, strand_column] += 1
+
+
+# }}}
+
 # {{{def plot_coverage(coverage,
 def plot_coverage(
     coverage,
@@ -363,7 +390,6 @@ def plot_coverage(
     tick_count = max(int(max_plot_depth / tick_count), 1)
 
     # set axis parameters
-    #ax2.yaxis.set_major_locator(ticker.FixedLocator(tick_count))
     ax2.yaxis.set_major_locator(ticker.MultipleLocator(tick_count))
     ax2.tick_params(axis="y", colors="grey", labelsize=yaxis_label_fontsize)
     ax2.spines["top"].set_visible(False)
@@ -382,6 +408,59 @@ def plot_coverage(
 
 # }}}
 
+# {{{def plot_unmapped_mate_bars(counts, ax, ranges, yaxis_label_fontsize):
+def plot_unmapped_mate_bars(counts, ax, ranges, yaxis_label_fontsize):
+    """Plots mapped intervals whose paired mate is unmapped."""
+    bar_x = {0: [], 1: []}
+    bar_y = {0: [], 1: []}
+    bar_width = {0: [], 1: []}
+
+    for range_index, r in enumerate(ranges):
+        region_len = r.end - r.start
+        if region_len <= 0:
+            continue
+        scale = 1.0 / len(ranges)
+        width = scale / region_len
+        for position in range(r.start, r.end):
+            values = counts.get(r.chrm, {}).get(position, (0, 0))
+            for strand_column in (0, 1):
+                value = values[strand_column]
+                if value:
+                    bar_x[strand_column].append(
+                        scale * range_index + scale * (position - r.start) / region_len
+                    )
+                    bar_y[strand_column].append(value)
+                    bar_width[strand_column].append(width)
+
+    max_bar_height = max((max(values) for values in bar_y.values() if values), default=0)
+    if max_bar_height == 0:
+        return None
+
+    bar_ax = ax.twinx()
+    bar_ax.spines["right"].set_position(("outward", 40))
+    bar_ax.spines["right"].set_color("grey")
+    bar_ax.spines["top"].set_visible(False)
+    bar_ax.spines["bottom"].set_visible(False)
+    bar_ax.spines["left"].set_visible(False)
+    bar_ax.spines["right"].set_visible(True)
+    bar_ax.tick_params( axis="y", colors="grey", labelsize=yaxis_label_fontsize)
+    bar_ax.set_ylabel("Unmapped Read Count", fontsize=8, labelpad=10)
+
+    for strand_column, color in ((0, COLORS["Missing mate paired-end read 1"]),
+                                 (1, COLORS["Missing mate paired-end read 2"])):
+        bar_ax.bar(
+            bar_x[strand_column],
+            bar_y[strand_column],
+            width=bar_width[strand_column],
+            align="edge",
+            color=color,
+            alpha=0.35,
+            linewidth=0,
+        )
+    return bar_ax
+
+# }}}
+
 ##Pair End methods
 # {{{class PairedEnd:
 class PairedEnd:
@@ -391,7 +470,7 @@ class PairedEnd:
     molecular identifier), HP (int haplotype)
     """
 
-    def __init__(self, chrm, start, end, is_reverse, MI_tag, HP_tag):
+    def __init__(self, chrm, start, end, is_reverse, MI_tag, HP_tag, mate_is_unmapped=False):
         """Create PairedEnd instance
 
         Genomic interval is defined by start and end integers
@@ -405,6 +484,8 @@ class PairedEnd:
         self.MI = None
         # haplotype - phased reads only
         self.HP = 0
+
+        self.mate_is_unmapped = mate_is_unmapped
 
         if MI_tag:
             self.MI = MI_tag
@@ -457,6 +538,7 @@ def add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp):
         read.is_reverse,
         MI_tag,
         HP_tag,
+        read.mate_is_unmapped
     )
 
     if pe.HP not in pairs:
@@ -499,6 +581,9 @@ def sample_normal(max_depth, pairs, z):
     for read_name in pairs:
         pair = pairs[read_name]
         if len(pair) != 2:
+            if pair[0].mate_is_unmapped:
+                sampled_pairs[read_name] = pair
+
             continue
         if pair[0].strand == True and pair[1].strand == False:
             plus_minus_pairs[read_name] = pair
@@ -618,27 +703,22 @@ def get_pair_plan(ranges, pair, linked_plan=False):
         return None
 
     first = pair[0]
-    second = pair[1]
+    mate_missing = len(pair) != 2 and first.mate_is_unmapped
+
+    if not mate_missing:
+        second = pair[1]
 
     # see if they are part of a linked read
     if not linked_plan and (first.MI or second.MI):
         return None
 
-    # make sure both ends are in the plotted region
-    first_s_hit = get_range_hit(ranges, first.pos.chrm, first.pos.start)
-    first_e_hit = get_range_hit(ranges, first.pos.chrm, first.pos.end)
-    second_s_hit = get_range_hit(ranges, second.pos.chrm, second.pos.start)
-    second_e_hit = get_range_hit(ranges, second.pos.chrm, second.pos.end)
+        second_hit = get_read_hit(ranges, second)
+        if second_hit is None:
+            return None
 
-    if (first_s_hit == None and first_e_hit == None) or (
-        second_s_hit == None and second_e_hit == None
-    ):
+    first_hit = get_read_hit(ranges, first)
+    if first_hit is None:
         return None
-
-    insert_size = get_pair_insert_size(ranges, pair)
-
-    first_hit = first_s_hit if first_s_hit != None else first_e_hit
-    second_hit = second_e_hit if second_e_hit != None else second_s_hit
 
     start = genome_interval(
         first.pos.chrm,
@@ -646,21 +726,47 @@ def get_pair_plan(ranges, pair, linked_plan=False):
         max(first.pos.start, ranges[first_hit].start),
     )
 
-    end = genome_interval(
-        second.pos.chrm,
-        min(second.pos.end, ranges[second_hit].end),
-        min(second.pos.end, ranges[second_hit].end),
-    )
+    if not mate_missing:
+        insert_size = get_pair_insert_size(ranges, pair)
+
+        end = genome_interval(
+            second.pos.chrm,
+            min(second.pos.end, ranges[second_hit].end),
+            min(second.pos.end, ranges[second_hit].end),
+        )
+    else:
+        insert_size = 2000
+
+        end = genome_interval(
+            first.pos.chrm,
+            min(first.pos.end, ranges[first_hit].end),
+            min(first.pos.end, ranges[first_hit].end),
+        )
 
     step = plan_step(start, end, "PAIREND")
 
     event_type = get_pair_event_type(pair)
-    step.info = {"TYPE": event_type, "INSERTSIZE": insert_size}
+    step.info = {"TYPE": get_pair_event_type(pair),
+                 "INSERTSIZE": insert_size}
+
+    if mate_missing:
+        step.info["MATE_IS_UNMAPPED"] = first.strand
+
 
     return insert_size, step
 
-
 # }}}
+# {{{def get_read_hit(ranges, read):
+def get_read_hit(ranges, read):
+    """Make sure both ends are in the plotted region
+    """
+    s_hit = get_range_hit(ranges, read.pos.chrm, read.pos.start)
+    e_hit = get_range_hit(ranges, read.pos.chrm, read.pos.end)
+    if s_hit is None and e_hit is None:
+        return None
+
+    return e_hit if e_hit is not None else s_hit
+
 
 # {{{def get_pair_event_type(pe_read):
 def get_pair_event_type(pe_read):
@@ -672,9 +778,16 @@ def get_pair_event_type(pe_read):
         (False, False): "Inversion",
         (True, True): "Inversion",
     }
-    event_type = event_by_strand[pe_read[0].strand, pe_read[1].strand]
-    return event_type
 
+    # Case Mate unmapped (read either forward or reverse strand)
+    if len(pe_read) != 2 and pe_read[0].mate_is_unmapped:
+        # first strand is True (forward) - our read could be forward or reverse
+        first_strand = pe_read[0].strand if pe_read[0].strand else not pe_read[0].strand
+        event_type = event_by_strand[first_strand, not first_strand]
+    else:
+        event_type = event_by_strand[pe_read[0].strand, pe_read[1].strand]
+
+    return event_type
 
 # }}}
 
@@ -687,7 +800,7 @@ def jitter(value, bounds: float = 0.1) -> float:
 
 
 # {{{def plot_pair_plan(ranges, step, ax):
-def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
+def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=None):
     p = [
         map_genome_point_to_range_points(
             ranges, step.start_pos.chrm, step.start_pos.start
@@ -709,9 +822,47 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds):
     # Offset y-values using jitter to avoid overlapping lines
     y = jitter(y, bounds=jitter_bounds)
 
+    if stepSize is not None: #stair only for paired end reads
+        y = stepSize
+
     event_type = step.info["TYPE"]
     READ_TYPES_USED[event_type] = True
     color = COLORS[event_type]
+
+    x_start = p[0]
+    x_end = p[1]
+
+    if "MATE_IS_UNMAPPED" in step.info:
+        READ_TYPES_USED["Missing mate paired-end read"] = True
+        if step.info["MATE_IS_UNMAPPED"] == True:
+            #if mate is on forward strand
+            ax.plot(
+                [x_start, x_end],
+                [y, y],
+                "-",
+                color=COLORS["Missing mate paired-end read 1"],
+                alpha=1,
+                lw=1.0,
+                marker="|",
+                markersize=marker_size,
+                markevery=[0],
+                zorder=10,
+            )
+        else:
+            ax.plot(
+                [x_start, x_end],
+                [y, y],
+                "-",
+                color=COLORS["Missing mate paired-end read 2"],
+                alpha=1,
+                lw=1.0,
+                marker="|",
+                markersize=marker_size,
+                markevery=[1],
+                zorder=10,
+            )
+
+        return True
 
     # plot the individual pair
     ax.plot(
@@ -745,8 +896,30 @@ def plot_pairs(
 
     max_event, steps = plan
 
+    steps.sort(key=lambda step: step.start_pos.start)
+
+    stairStep = 0
+
+    axRange = ranges[0]
+    axSize = axRange.end - axRange.start
+    print(axSize)
+
+    n_steps_pe = 0
     for step in steps:
-        plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds)
+        if "MATE_IS_UNMAPPED" in step.info: #only count the paired end reads
+            n_steps_pe += 1
+
+    if n_steps_pe > 1:
+        stepHeight = max_event / (n_steps_pe - 1)
+    else:
+        stepHeight = 0
+
+    for step in steps:
+        if "MATE_IS_UNMAPPED" in step.info:
+            if plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=stairStep * stepHeight):
+                stairStep += 1
+        else:
+            plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds)
 
     if not curr_min_insert_size or curr_min_insert_size > max_event:
         curr_min_insert_size = max_event
@@ -754,7 +927,6 @@ def plot_pairs(
         curr_max_insert_size = max_event
 
     return [curr_min_insert_size, curr_max_insert_size]
-
 
 # }}}
 
@@ -1813,7 +1985,7 @@ def support_to_color(n_reads):
     return plt.cm.Purples(level)
 
 # {{{def plot_long_reads(long_reads,
-def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_insert_size, limitInsertion, jitter_bounds,yaxis_label_fontsize):
+def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_insert_size, jitter_bounds):
     """Plots all LongReads for the region
     """
 
@@ -1873,6 +2045,8 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
 
                 curr_max_insert_size = max(curr_max_insert_size, max_gap)
             elif event_type == "Insertion":
+                range_hit = get_range_hit(ranges, step.start_pos.chrm, step.start_pos.start)
+                range_width = 1.0 / len(ranges)
 
                 insertion_length = step.info["LENGTH"]
                 x = p[0]
@@ -2624,6 +2798,7 @@ def get_read_data(
     all_coverages = []
     all_long_reads = []
     all_linked_reads = []
+    all_unmapped_mate_counts = []
 
     max_coverage = 0
     haplotypes = [0, 1, 2]
@@ -2647,6 +2822,7 @@ def get_read_data(
         splits = {}
         long_reads = {}
         coverage = {hp: {} for hp in haplotypes}
+        unmapped_mate_counts = {hp: {} for hp in haplotypes}
         linked_reads = {}
 
         for r in ranges:
@@ -2675,6 +2851,7 @@ def get_read_data(
             # all coverage will be in the second column.
             range_len = range_end - range_start
             range_hp_coverage = {hp: np.zeros((range_len, 2), dtype=int) for hp in haplotypes}
+            range_unmapped_mate_counts = {hp: np.zeros((range_len, 2), dtype=int) for hp in haplotypes}
 
             for read in bam_iter:
                 if (
@@ -2691,6 +2868,13 @@ def get_read_data(
                     else:
                         add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp)
                         add_split(read, splits, bam_file, linked_reads, ignore_hp)
+                        hp = 0 if ignore_hp or not read.has_tag("HP") else read.get_tag("HP")
+                        add_unmapped_mate_interval(
+                            read,
+                            range_unmapped_mate_counts[hp],
+                            range_start,
+                            range_end,
+                        )
 
                 # Add read coverage to the specified haplotype and column
                 hp = 0 if ignore_hp or not read.has_tag("HP") else read.get_tag("HP")
@@ -2705,6 +2889,16 @@ def get_read_data(
 
                 for position in range(range_start, range_end):
                     coverage[hp][chrm][position] = list(range_coverage[position-range_start])
+
+                if range_unmapped_mate_counts[hp].sum() > 0:
+                    unmapped_mate_counts[hp].setdefault(chrm, {})
+                    for position in range(range_start, range_end):
+                        values = range_unmapped_mate_counts[hp][position - range_start]
+                        if values.any():
+                            unmapped_mate_counts[hp][chrm][position] = [
+                                int(values[0]),
+                                int(values[1]),
+                            ]
 
         if (
             len(pairs) == 0
@@ -2744,6 +2938,7 @@ def get_read_data(
         all_splits.append(splits)
         all_long_reads.append(long_reads)
         all_linked_reads.append(linked_reads)
+        all_unmapped_mate_counts.append(unmapped_mate_counts)
 
     read_data = {
         "all_pairs": all_pairs,
@@ -2751,6 +2946,7 @@ def get_read_data(
         "all_coverages": all_coverages,
         "all_long_reads": all_long_reads,
         "all_linked_reads": all_linked_reads,
+        "all_unmapped_mate_counts": all_unmapped_mate_counts,
     }
 
     # Sample +/- pairs in the normal insert size range
@@ -2870,6 +3066,10 @@ def plot_samples(
             if hp in read_data["all_coverages"][i]:
                 curr_coverage = read_data["all_coverages"][i][hp]
 
+            curr_unmapped_mate_counts = {}
+            if hp in read_data["all_unmapped_mate_counts"][i]:
+                curr_unmapped_mate_counts = read_data["all_unmapped_mate_counts"][i][hp]
+
             cover_ax = plot_coverage(
                 curr_coverage,
                 curr_ax,
@@ -2925,6 +3125,12 @@ def plot_samples(
                     jitter_bounds,
                 )
 
+            plot_unmapped_mate_bars(
+                curr_unmapped_mate_counts,
+                curr_ax,
+                ranges,
+                yaxis_label_fontsize,
+            )
             cover_axs[hp] = cover_ax
             if curr_max_insert_size and (curr_max_insert_size > max_insert_size):
                 max_insert_size = curr_max_insert_size
@@ -3040,11 +3246,39 @@ def plot_samples(
     return ax_i
 # }}}
 
+class TwoColorLine:
+    def __init__(self, color1, color2):
+        self.color1 = color1
+        self.color2 = color2
+
 # HandlerBase is necessary because two artists (the two markers) should be combined as
 # Line2D only draws horizontal lines
 from matplotlib.legend_handler import HandlerBase
 from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
+
+class TwoColorLineHandler(HandlerBase):
+    def create_artists(
+        self,legend, orig_handle,xdescent, ydescent,
+        width, height,fontsize,trans
+    ):
+        y = ydescent + height/2
+        x_mid = xdescent + width/2
+        left = Line2D(
+            [xdescent, x_mid], [y, y],
+            color=orig_handle.color1,
+            linewidth=1.5,
+            transform=trans
+        )
+
+        right = Line2D(
+            [x_mid, xdescent+width], [y, y],
+            color=orig_handle.color2,
+            linewidth=1.5,
+            transform=trans
+        )
+
+        return  [left, right]
 
 class InsertionHandler(HandlerBase):
     event_type: Final = "Insertion"
@@ -3087,6 +3321,8 @@ def plot_legend(fig, legend_fontsize, marker_size):
         "Aligned long read": "orange",
         "Linked read": "green",
         "Insertion":"purple",
+        "Missing mate paired-end read 1": "magenta",
+        "Missing mate paired-end read 2": "cyan"
     }
 
     for read_type in READ_TYPES_USED:
@@ -3147,6 +3383,20 @@ def plot_legend(fig, legend_fontsize, marker_size):
         #handler is only defined for insertion
         handler_map=handler_map
     )
+
+    if READ_TYPES_USED["Missing mate paired-end read"]:
+        marker_labels.append("Missing mate paired-end read")
+
+        legend_elements.append(
+            TwoColorLine(read_colors["Missing mate paired-end read 1"],
+                         read_colors["Missing mate paired-end read 2"])
+        )
+
+    fig.legend(
+        legend_elements,marker_labels,loc=1,fontsize=legend_fontsize,frameon=False,
+        handler_map={TwoColorLine: TwoColorLineHandler()}
+    )
+
 # }}}
 
 # {{{def create_gridspec(bams, transcript_file, annotation_files, sv_type ):
