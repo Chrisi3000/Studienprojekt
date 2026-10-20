@@ -708,9 +708,9 @@ def get_pair_plan(ranges, pair, linked_plan=False):
     if not mate_missing:
         second = pair[1]
 
-    # see if they are part of a linked read
-    if not linked_plan and (first.MI or second.MI):
-        return None
+        # see if they are part of a linked read
+        if not linked_plan and (first.MI or second.MI):
+            return None
 
         second_hit = get_read_hit(ranges, second)
         if second_hit is None:
@@ -840,7 +840,7 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=None):
                 [x_start, x_end],
                 [y, y],
                 "-",
-                color=COLORS["Missing mate paired-end read 1"],
+                color="cyan",
                 alpha=1,
                 lw=1.0,
                 marker="|",
@@ -853,7 +853,7 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=None):
                 [x_start, x_end],
                 [y, y],
                 "-",
-                color=COLORS["Missing mate paired-end read 2"],
+                color="magenta",
                 alpha=1,
                 lw=1.0,
                 marker="|",
@@ -897,7 +897,6 @@ def plot_pairs(
     max_event, steps = plan
 
     steps.sort(key=lambda step: step.start_pos.start)
-
     stairStep = 0
 
     axRange = ranges[0]
@@ -1985,10 +1984,9 @@ def support_to_color(n_reads):
     return plt.cm.Purples(level)
 
 # {{{def plot_long_reads(long_reads,
-def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_insert_size, jitter_bounds):
+def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_insert_size, limitInsertion, jitter_bounds, yaxis_label_fontsize):
     """Plots all LongReads for the region
     """
-
     Path = mpath.Path
 
     colors = {
@@ -3104,7 +3102,8 @@ def plot_samples(
                     jitter_bounds,
                     yaxis_label_fontsize
                 )
-            else:
+
+            elif len(curr_linked_reads) == 0 and len(curr_long_reads) == 0:
                 curr_min_insert_size, curr_max_insert_size = plot_pairs(
                     curr_pairs,
                     curr_ax,
@@ -3227,20 +3226,26 @@ def plot_samples(
         cover_ax = cover_axs[hps[int(len(hps) / 2)]]
         cover_ax.set_ylabel("Coverage", fontsize=8)
 
-        #Insertion Size label axis
-        insert_ax = curr_ax.twinx()
-        insert_ax.spines["right"].set_position(("outward", 40))
-        insert_ax.spines["top"].set_visible(False)
-        insert_ax.spines["bottom"].set_visible(False)
-        insert_ax.spines["left"].set_visible(False)
-        insert_ax.spines["right"].set_visible(False)
-        insert_ax.tick_params(
-            axis="y",
-            right=False,
-            labelright=False,
-            length=0
+        # The insertion-length axis is meaningful only for samples with
+        # measured long reads.
+        has_long_reads = any(
+            len(read_data["all_long_reads"][i].get(hp, {})) > 0
+            for hp in hps
         )
-        insert_ax.set_ylabel("Insertion Length", fontsize=8, labelpad=10)
+        if has_long_reads:
+            insert_ax = curr_ax.twinx()
+            insert_ax.spines["right"].set_position(("outward", 40))
+            insert_ax.spines["top"].set_visible(False)
+            insert_ax.spines["bottom"].set_visible(False)
+            insert_ax.spines["left"].set_visible(False)
+            insert_ax.spines["right"].set_visible(False)
+            insert_ax.tick_params(
+                axis="y",
+                right=False,
+                labelright=False,
+                length=0
+            )
+            insert_ax.set_ylabel("Insertion Length", fontsize=8, labelpad=10)
 
         ax_i += 1
     return ax_i
@@ -3250,12 +3255,6 @@ class TwoColorLine:
     def __init__(self, color1, color2):
         self.color1 = color1
         self.color2 = color2
-
-# HandlerBase is necessary because two artists (the two markers) should be combined as
-# Line2D only draws horizontal lines
-from matplotlib.legend_handler import HandlerBase
-from matplotlib.lines import Line2D
-import matplotlib.pyplot as plt
 
 class TwoColorLineHandler(HandlerBase):
     def create_artists(
@@ -3284,6 +3283,8 @@ class InsertionHandler(HandlerBase):
     event_type: Final = "Insertion"
     def create_artists(self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans):
         x = width / 2
+
+        print("Insertion color:", COLORS["Insertion"])
 
         # line vertical
         line = Line2D(
@@ -3326,7 +3327,7 @@ def plot_legend(fig, legend_fontsize, marker_size):
     }
 
     for read_type in READ_TYPES_USED:
-        if read_type in read_colors:
+        if read_type in read_colors and read_type != "Insertion":
             color = read_colors[read_type]
             flag = READ_TYPES_USED[read_type]
             if flag:
@@ -3376,13 +3377,6 @@ def plot_legend(fig, legend_fontsize, marker_size):
 
         insertion_handle = Line2D([], [])
         legend_elements.append(insertion_handle)
-        handler_map = {insertion_handle: InsertionHandler()}
-
-    fig.legend(
-        legend_elements, marker_labels, loc=1, fontsize=legend_fontsize, frameon=False,
-        #handler is only defined for insertion
-        handler_map=handler_map
-    )
 
     if READ_TYPES_USED["Missing mate paired-end read"]:
         marker_labels.append("Missing mate paired-end read")
@@ -3393,8 +3387,12 @@ def plot_legend(fig, legend_fontsize, marker_size):
         )
 
     fig.legend(
-        legend_elements,marker_labels,loc=1,fontsize=legend_fontsize,frameon=False,
-        handler_map={TwoColorLine: TwoColorLineHandler()}
+        legend_elements, marker_labels, loc=1, fontsize=legend_fontsize, frameon=False,
+        # handler is only defined for insertion
+        handler_map={
+            **handler_map,
+            TwoColorLine: TwoColorLineHandler(),
+        }
     )
 
 # }}}
