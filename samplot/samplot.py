@@ -899,7 +899,6 @@ def plot_pairs(
 
     axRange = ranges[0]
     axSize = axRange.end - axRange.start
-    print(axSize)
 
     n_steps_pe = 0
     for step in steps:
@@ -3284,8 +3283,6 @@ class InsertionHandler(HandlerBase):
     event_type: Final = "Insertion"
     def create_artists(self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans):
         x = width / 2
-
-        print("Insertion color:", COLORS["Insertion"])
 
         # line vertical
         line = Line2D(
