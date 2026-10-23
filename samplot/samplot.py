@@ -513,7 +513,6 @@ def add_pair_end(bam_file, read, pairs, linked_reads, ignore_hp):
     Pysam read is added as simpified PairedEnd instance to pairs
     Also added to linked_reads list if there is an associated MI tag
     """
-
     if read.is_unmapped:
         return
     if not (read.is_paired):
@@ -699,7 +698,7 @@ def get_pairs_plan(ranges, pairs, linked_plan=False):
 
 # {{{def get_pair_plan(ranges, pair, linked_plan=False):
 def get_pair_plan(ranges, pair, linked_plan=False):
-    if pair == None or len(pair) != 2:
+    if pair is None:
         return None
 
     first = pair[0]
@@ -745,7 +744,6 @@ def get_pair_plan(ranges, pair, linked_plan=False):
 
     step = plan_step(start, end, "PAIREND")
 
-    event_type = get_pair_event_type(pair)
     step.info = {"TYPE": get_pair_event_type(pair),
                  "INSERTSIZE": insert_size}
 
@@ -840,7 +838,7 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=None):
                 [x_start, x_end],
                 [y, y],
                 "-",
-                color="cyan",
+                color=COLORS["Missing mate paired-end read 1"],
                 alpha=1,
                 lw=1.0,
                 marker="|",
@@ -853,7 +851,7 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=None):
                 [x_start, x_end],
                 [y, y],
                 "-",
-                color="magenta",
+                color=COLORS["Missing mate paired-end read 2"],
                 alpha=1,
                 lw=1.0,
                 marker="|",
@@ -2882,7 +2880,7 @@ def get_read_data(
             # Tally the coverage for each position and updata coverage dict.
             for hp, range_coverage in range_hp_coverage.items():
                 # Skip empty haplotypes
-                if (range_coverage.sum() == 0).all():
+                if  (range_coverage.sum() == 0).all():
                     continue
 
                 for position in range(range_start, range_end):
@@ -3279,6 +3277,9 @@ class TwoColorLineHandler(HandlerBase):
 
         return  [left, right]
 
+class InsertionHandle:
+    pass
+
 class InsertionHandler(HandlerBase):
     event_type: Final = "Insertion"
     def create_artists(self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans):
@@ -3374,8 +3375,7 @@ def plot_legend(fig, legend_fontsize, marker_size):
 
     if READ_TYPES_USED["Insertion"]:
         marker_labels.append("Insertion")
-
-        insertion_handle = Line2D([], [])
+        insertion_handle = InsertionHandle()
         legend_elements.append(insertion_handle)
 
     if READ_TYPES_USED["Missing mate paired-end read"]:
@@ -3390,7 +3390,7 @@ def plot_legend(fig, legend_fontsize, marker_size):
         legend_elements, marker_labels, loc=1, fontsize=legend_fontsize, frameon=False,
         # handler is only defined for insertion
         handler_map={
-            **handler_map,
+            InsertionHandle: InsertionHandler(),
             TwoColorLine: TwoColorLineHandler(),
         }
     )
