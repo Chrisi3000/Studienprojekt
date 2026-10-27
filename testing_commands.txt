@@ -40,6 +40,5 @@ chr19    23751136     23755136
 chr4    35785000      35789000
 chr9    73295364      73299364
 
-
 samtools view -b HG002_PacBio-HiFi-Revio_20231031_48x_GRCh38-GIABv3.bam chr19 > HG002_PacBio_48x_GRCh38_Chr19.bam
 samtools index HG002_PacBio_48x_GRCh38_Chr19.bam
