@@ -883,7 +883,14 @@ def plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=None):
 
 # {{{def plot_pairs(pairs,
 def plot_pairs(
-    pairs, ax, ranges, curr_min_insert_size, curr_max_insert_size, marker_size, jitter_bounds,
+    pairs,
+    ax,
+    ranges,
+    curr_min_insert_size,
+    curr_max_insert_size,
+    marker_size,
+    jitter_bounds,
+    show_unmapped_mates=True,
 ):
     """Plots all PairedEnd reads for the region
     """
@@ -894,29 +901,38 @@ def plot_pairs(
         [curr_min_insert_size, curr_max_insert_size]
 
     max_event, steps = plan
+    visible_steps = [
+        step for step in steps
+        if show_unmapped_mates or "MATE_IS_UNMAPPED" not in step.info
+    ]
 
-    steps.sort(key=lambda step: step.start_pos.start)
+    visible_steps.sort(key=lambda step: step.start_pos.start)
     stairStep = 0
 
-    axRange = ranges[0]
-    axSize = axRange.end - axRange.start
-
     n_steps_pe = 0
-    for step in steps:
+    for step in visible_steps:
         if "MATE_IS_UNMAPPED" in step.info: #only count the paired end reads
             n_steps_pe += 1
 
     if n_steps_pe > 1:
-        stepHeight = max_event / (n_steps_pe - 1)
+        visible_max_event = max(
+            step.info["INSERTSIZE"] for step in visible_steps
+        )
+        stepHeight = visible_max_event / (n_steps_pe - 1)
     else:
         stepHeight = 0
 
-    for step in steps:
+    for step in visible_steps:
         if "MATE_IS_UNMAPPED" in step.info:
             if plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds, stepSize=stairStep * stepHeight):
                 stairStep += 1
         else:
             plot_pair_plan(ranges, step, ax, marker_size, jitter_bounds)
+
+    max_event = max(
+        (step.info["INSERTSIZE"] for step in visible_steps),
+        default=0,
+    )
 
     if not curr_min_insert_size or curr_min_insert_size > max_event:
         curr_min_insert_size = max_event
@@ -3015,6 +3031,7 @@ def plot_samples(
     marker_size,
     coverage_only,
     jitter_bounds,
+    show_unmapped_mates,
 ):
 
     """Plots all samples
@@ -3109,7 +3126,8 @@ def plot_samples(
                     curr_min_insert_size,
                     curr_max_insert_size,
                     marker_size,
-                    jitter_bounds
+                    jitter_bounds,
+                    show_unmapped_mates
                 )
 
                 curr_min_insert_size, curr_max_insert_size = plot_splits(
@@ -3122,12 +3140,13 @@ def plot_samples(
                     jitter_bounds,
                 )
 
-            plot_unmapped_mate_bars(
-                curr_unmapped_mate_counts,
-                curr_ax,
-                ranges,
-                yaxis_label_fontsize,
-            )
+            if show_unmapped_mates:
+                plot_unmapped_mate_bars(
+                    curr_unmapped_mate_counts,
+                    curr_ax,
+                    ranges,
+                    yaxis_label_fontsize,
+                )
             cover_axs[hp] = cover_ax
             if curr_max_insert_size and (curr_max_insert_size > max_insert_size):
                 max_insert_size = curr_max_insert_size
@@ -3961,6 +3980,7 @@ def plot(parser, options, extra_args=None):
         marker_size,
         options.coverage_only,
         options.jitter,
+        options.sv_type is not None and options.sv_type.upper() == "INS",
     )
     # plot legend
     plot_legend(fig, options.legend_fontsize, marker_size)
