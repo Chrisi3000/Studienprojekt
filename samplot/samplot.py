@@ -3037,6 +3037,8 @@ def plot_samples(
     """Plots all samples
     """
     max_insert_size = 0
+    show_unmapped_mates_caps = show_unmapped_mates.upper()
+    plot_unmapped_mates = bool(re.search(r".*INS.*", show_unmapped_mates_caps))
 
     # If jitter > 0.08 is use we need to shift the ylim a bit to not hide any entires.
     ylim_margin = max(1.02 + jitter_bounds, 1.10)
@@ -3127,7 +3129,7 @@ def plot_samples(
                     curr_max_insert_size,
                     marker_size,
                     jitter_bounds,
-                    show_unmapped_mates
+                    plot_unmapped_mates
                 )
 
                 curr_min_insert_size, curr_max_insert_size = plot_splits(
@@ -3140,7 +3142,7 @@ def plot_samples(
                     jitter_bounds,
                 )
 
-            if show_unmapped_mates:
+            if plot_unmapped_mates:
                 plot_unmapped_mate_bars(
                     curr_unmapped_mate_counts,
                     curr_ax,
@@ -3980,7 +3982,7 @@ def plot(parser, options, extra_args=None):
         marker_size,
         options.coverage_only,
         options.jitter,
-        options.sv_type is not None and options.sv_type.upper() == "INS",
+        options.sv_type
     )
     # plot legend
     plot_legend(fig, options.legend_fontsize, marker_size)
