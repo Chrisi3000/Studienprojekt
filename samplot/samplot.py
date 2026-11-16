@@ -2064,9 +2064,10 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
 
                 if cluster is None:
                     # new insertion: draw the line and remember it
+                    size = support_to_linewidth(1)
                     line, = ax2.plot([x, x], [insertion_length, y_upper], marker=7,
                                      markevery=[0], c=support_to_color(1),
-                                     markersize=3, lw=support_to_linewidth(1))
+                                     markersize=size + 3, lw=size)
                     insertion_clusters[key] = {
                         "reads": {read_name},
                         "line": line, "x": x, "y_upper": y_upper
@@ -2075,7 +2076,9 @@ def plot_long_reads(long_reads, ax, ranges, curr_min_insert_size, curr_max_inser
                     # same insertion: count read, adjust line width and color
                     cluster["reads"].add(read_name)
                     n_reads = len(cluster["reads"])
-                    cluster["line"].set_linewidth(support_to_linewidth(n_reads))
+                    size = support_to_linewidth(support_to_linewidth(n_reads))
+                    cluster["line"].set_linewidth(size)
+                    cluster["line"].set_markersize(size + 3)
                     cluster["line"].set_color(support_to_color(n_reads))
 
                 limitInsertion = max(limitInsertion, insertion_length)
