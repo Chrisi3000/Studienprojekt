@@ -445,7 +445,8 @@ def plot_unmapped_mate_bars(counts, ax, ranges, yaxis_label_fontsize):
     bar_ax.spines["right"].set_visible(True)
     bar_ax.tick_params( axis="y", colors="grey", labelsize=yaxis_label_fontsize)
     bar_ax.set_ylabel("Unmapped Read Count", fontsize=8, labelpad=10)
-    bar_ax.set_yticks(range(0, max_bar_height + 1))
+    step = max(1, max_bar_height // 10)
+    bar_ax.set_yticks(range(0, max_bar_height + 1, step))
 
     for strand_column, color in ((0, COLORS["Missing mate paired-end read 1"]),
                                  (1, COLORS["Missing mate paired-end read 2"])):
