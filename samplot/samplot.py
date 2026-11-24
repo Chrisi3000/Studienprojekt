@@ -411,6 +411,7 @@ def plot_coverage(
 # {{{def plot_unmapped_mate_bars(counts, ax, ranges, yaxis_label_fontsize):
 def plot_unmapped_mate_bars(counts, ax, ranges, yaxis_label_fontsize):
     """Plots mapped intervals whose paired mate is unmapped."""
+
     bar_x = {0: [], 1: []}
     bar_y = {0: [], 1: []}
     bar_width = {0: [], 1: []}
@@ -890,7 +891,8 @@ def plot_pairs(
     curr_max_insert_size,
     marker_size,
     jitter_bounds,
-    show_unmapped_mates=True,
+    show_unmapped_mates,
+    show_unmapped_mate_pairs,
 ):
     """Plots all PairedEnd reads for the region
     """
@@ -902,8 +904,13 @@ def plot_pairs(
 
     max_event, steps = plan
     visible_steps = [
-        step for step in steps
-        if show_unmapped_mates or "MATE_IS_UNMAPPED" not in step.info
+        step
+        for step in steps
+        if (
+                "MATE_IS_UNMAPPED" not in step.info
+                or show_unmapped_mates
+                or show_unmapped_mate_pairs
+        )
     ]
 
     visible_steps.sort(key=lambda step: step.start_pos.start)
@@ -2332,6 +2339,17 @@ def add_plot(parent_parser):
         help="SV type. If omitted, plot is created " + "without variant bar",
         required=False,
     )
+
+    parser.add_argument(
+        "-i",
+        "--mode",
+        choices=["a", "b", "t", "n"],
+        default="n",
+        required=False,
+        help="Mode of presentation: a: plot both bars and pairs with unmapped mates, b: plot only bars, t: plot only"
+             "pairs with unmapped mates",
+
+    )
     
     def gff_file(transcript_file):
         if not os.path.isfile(transcript_file):
@@ -3032,13 +3050,34 @@ def plot_samples(
     coverage_only,
     jitter_bounds,
     show_unmapped_mates,
+    mode,
 ):
 
     """Plots all samples
     """
-    max_insert_size = 0
+
     show_unmapped_mates_caps = show_unmapped_mates.upper()
     plot_unmapped_mates = bool(re.search(r".*INS.*", show_unmapped_mates_caps))
+
+    max_insert_size = 0
+    if show_unmapped_mates:
+        show_unmapped_mate_bars = True
+        show_unmapped_mate_pairs = True
+    elif mode == "n":
+        show_unmapped_mate_bars = False
+        show_unmapped_mate_pairs = False
+    elif mode == "a":
+        show_unmapped_mate_bars = True
+        show_unmapped_mate_pairs = True
+    elif mode == "b":
+        show_unmapped_mate_bars = True
+        show_unmapped_mate_pairs = False
+    elif mode == "t":
+        show_unmapped_mate_bars = False
+        show_unmapped_mate_pairs = True
+    else:
+        show_unmapped_mate_bars = False
+        show_unmapped_mate_pairs = False
 
     # If jitter > 0.08 is use we need to shift the ylim a bit to not hide any entires.
     ylim_margin = max(1.02 + jitter_bounds, 1.10)
@@ -3129,7 +3168,8 @@ def plot_samples(
                     curr_max_insert_size,
                     marker_size,
                     jitter_bounds,
-                    plot_unmapped_mates
+                    show_unmapped_mates,
+                    show_unmapped_mate_pairs,
                 )
 
                 curr_min_insert_size, curr_max_insert_size = plot_splits(
@@ -3142,12 +3182,12 @@ def plot_samples(
                     jitter_bounds,
                 )
 
-            if plot_unmapped_mates:
+            if show_unmapped_mate_bars:
                 plot_unmapped_mate_bars(
                     curr_unmapped_mate_counts,
                     curr_ax,
                     ranges,
-                    yaxis_label_fontsize,
+                    yaxis_label_fontsize
                 )
             cover_axs[hp] = cover_ax
             if curr_max_insert_size and (curr_max_insert_size > max_insert_size):
@@ -3851,6 +3891,7 @@ def plot(parser, options, extra_args=None):
     To support translocations, the SVs are specified as an array of 
     genome_interval. For now we let that array be size 1 or 2.
     """
+
     if options.debug:
         logger.setLevel(logging.DEBUG)
     
@@ -3982,7 +4023,8 @@ def plot(parser, options, extra_args=None):
         marker_size,
         options.coverage_only,
         options.jitter,
-        options.sv_type
+        options.sv_type,
+        options.mode
     )
     # plot legend
     plot_legend(fig, options.legend_fontsize, marker_size)
